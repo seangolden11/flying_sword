@@ -1,0 +1,22 @@
+[Licensing::Module] Trying to connect to existing licensing client channel...
+Built from '6000.3/staging' branch; Version is '6000.3.22f1 (1c726e1fb402) revision 1864302'; Using compiler version '194234433'; Build Type 'Release'
+[Licensing::IpcConnector] Successfully connected to: "LicenseClient-JUNGLE" at "2026-11-05T08:50:59.4662233Z"
+OS: 'Windows 11  (10.0.26200) Enterprise' Language: 'ko' Physical Memory: 32406 MB
+BatchMode: 1, IsHumanControllingUs: 0, StartBugReporterOnCrash: 0, Is64bit: 1
+System  architecture: x64
+Process architecture: x64
+Date: 2026-11-05T08:50:59Z
+
+COMMAND LINE ARGUMENTS:
+C:\Program Files\Unity\Hub\Editor\6000.3.22f1\Editor\Unity.exe
+-batchmode
+-nographics
+-projectPath
+C:/Users/JUNGLE/Documents/GitHub/flying_sword
+-executeMethod
+SurvivalSmokeCheck.RunBatch
+-logFile
+C:/Users/JUNGLE/Documents/GitHub/flying_sword/Temp/integrated-check.log
+Successfully changed project path to: C:/Users/JUNGLE/Documents/GitHub/flying_sword
+C:/Users/JUNGLE/Documents/GitHub/flying_sword
+Exiting without the bug reporter. Application will terminate with return code 1

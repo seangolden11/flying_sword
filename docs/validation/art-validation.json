@@ -1,0 +1,194 @@
+[
+  {
+    "Name": "add.png",
+    "Width": 1261,
+    "Height": 1247,
+    "Transparent": true,
+    "Visible": true,
+    "CornerAlpha": 0
+  },
+  {
+    "Name": "attack.png",
+    "Width": 1254,
+    "Height": 1254,
+    "Transparent": true,
+    "Visible": true,
+    "CornerAlpha": 0
+  },
+  {
+    "Name": "copy.png",
+    "Width": 1254,
+    "Height": 1254,
+    "Transparent": true,
+    "Visible": true,
+    "CornerAlpha": 0
+  },
+  {
+    "Name": "counter.png",
+    "Width": 1254,
+    "Height": 1254,
+    "Transparent": true,
+    "Visible": true,
+    "CornerAlpha": 0
+  },
+  {
+    "Name": "delete.png",
+    "Width": 1024,
+    "Height": 1536,
+    "Transparent": true,
+    "Visible": true,
+    "CornerAlpha": 1
+  },
+  {
+    "Name": "electric.png",
+    "Width": 1254,
+    "Height": 1254,
+    "Transparent": true,
+    "Visible": true,
+    "CornerAlpha": 0
+  },
+  {
+    "Name": "fencing.png",
+    "Width": 1024,
+    "Height": 1536,
+    "Transparent": true,
+    "Visible": true,
+    "CornerAlpha": 0
+  },
+  {
+    "Name": "fragment_fx.png",
+    "Width": 1536,
+    "Height": 1024,
+    "Transparent": true,
+    "Visible": true,
+    "CornerAlpha": 0
+  },
+  {
+    "Name": "fusion.png",
+    "Width": 1254,
+    "Height": 1254,
+    "Transparent": true,
+    "Visible": true,
+    "CornerAlpha": 0
+  },
+  {
+    "Name": "guard.png",
+    "Width": 1254,
+    "Height": 1254,
+    "Transparent": true,
+    "Visible": true,
+    "CornerAlpha": 0
+  },
+  {
+    "Name": "heal.png",
+    "Width": 1254,
+    "Height": 1254,
+    "Transparent": true,
+    "Visible": true,
+    "CornerAlpha": 0
+  },
+  {
+    "Name": "homing.png",
+    "Width": 1254,
+    "Height": 1254,
+    "Transparent": true,
+    "Visible": true,
+    "CornerAlpha": 0
+  },
+  {
+    "Name": "intercept.png",
+    "Width": 1254,
+    "Height": 1254,
+    "Transparent": true,
+    "Visible": true,
+    "CornerAlpha": 0
+  },
+  {
+    "Name": "monitor.png",
+    "Width": 1312,
+    "Height": 1199,
+    "Transparent": true,
+    "Visible": true,
+    "CornerAlpha": 0
+  },
+  {
+    "Name": "recall.png",
+    "Width": 1254,
+    "Height": 1254,
+    "Transparent": true,
+    "Visible": true,
+    "CornerAlpha": 0
+  },
+  {
+    "Name": "reroll.png",
+    "Width": 1254,
+    "Height": 1254,
+    "Transparent": true,
+    "Visible": true,
+    "CornerAlpha": 0
+  },
+  {
+    "Name": "shard.png",
+    "Width": 1115,
+    "Height": 1411,
+    "Transparent": true,
+    "Visible": true,
+    "CornerAlpha": 0
+  },
+  {
+    "Name": "sword.png",
+    "Width": 1024,
+    "Height": 1536,
+    "Transparent": true,
+    "Visible": true,
+    "CornerAlpha": 0
+  },
+  {
+    "Name": "synergy_a.png",
+    "Width": 1024,
+    "Height": 1536,
+    "Transparent": true,
+    "Visible": true,
+    "CornerAlpha": 0
+  },
+  {
+    "Name": "synergy_b.png",
+    "Width": 1024,
+    "Height": 1536,
+    "Transparent": true,
+    "Visible": true,
+    "CornerAlpha": 0
+  },
+  {
+    "Name": "synergy_fx.png",
+    "Width": 1254,
+    "Height": 1254,
+    "Transparent": true,
+    "Visible": true,
+    "CornerAlpha": 0
+  },
+  {
+    "Name": "table.png",
+    "Width": 1536,
+    "Height": 1024,
+    "Transparent": true,
+    "Visible": true,
+    "CornerAlpha": 0
+  },
+  {
+    "Name": "trash.png",
+    "Width": 1261,
+    "Height": 1247,
+    "Transparent": true,
+    "Visible": true,
+    "CornerAlpha": 0
+  },
+  {
+    "Name": "washer.png",
+    "Width": 1254,
+    "Height": 1254,
+    "Transparent": true,
+    "Visible": true,
+    "CornerAlpha": 0
+  }
+]

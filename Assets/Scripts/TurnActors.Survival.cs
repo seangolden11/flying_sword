@@ -6,6 +6,12 @@ public sealed partial class TurnActors
 {
     [Header("Survival test tuning")]
     [SerializeField, Min(.1f)] float spawnInterval = 2f;
+    [SerializeField, Min(1)] int initialSpawnCount = 1;
+    [SerializeField, Min(1)] float spawnCountGrowthInterval = 60f;
+    [UnityEngine.Serialization.FormerlySerializedAs("additionalEnemiesPerLevel")]
+    [SerializeField, Min(0)] int additionalEnemiesPerTimeStep = 1;
+    public int CurrentSpawnCount => Mathf.Max(1, initialSpawnCount +
+        Mathf.FloorToInt(combatTime / Mathf.Max(1, spawnCountGrowthInterval)) * additionalEnemiesPerTimeStep);
     [SerializeField, Range(0, 1)] float rangedEnemyChance = .35f;
     [SerializeField, Min(.1f)] float meleeSpeed = 1.1f;
     [SerializeField, Min(.1f)] float rangedSpeed = .8f;
@@ -15,6 +21,13 @@ public sealed partial class TurnActors
     [SerializeField, Min(.1f)] float projectileSpeed = 3.4f;
     [SerializeField, Min(0)] float knockbackSpeed = 6f;
     [SerializeField, Min(.01f)] float knockbackDuration = .2f;
+    [SerializeField, Min(0)] float spawnIntervalReductionPerLevel = .06f;
+    [SerializeField, Min(.05f)] float minimumSpawnInterval = .25f;
+    public float CurrentSpawnInterval => Mathf.Max(Mathf.Max(.05f, minimumSpawnInterval), spawnInterval - (Level - 1) * spawnIntervalReductionPerLevel);
+
+    [Header("Progression test tuning")]
+    [SerializeField, Min(1)] int initialRequiredExperience = 3;
+    [SerializeField, Min(1)] int requiredExperienceIncrease = 2;
 
     sealed class Enemy
     {
@@ -28,6 +41,7 @@ public sealed partial class TurnActors
         public float MoveTimer;
         public float KnockbackTimer;
         public Vector2 KnockbackDirection;
+        public float KnockbackSpeed;
         public float StrafeSign;
     }
 
@@ -35,24 +49,31 @@ public sealed partial class TurnActors
     SpriteRenderer heroRenderer;
     float spawnTimer, invulnerability;
     int pendingSwords;
+    bool hasCounter, hasKillHeal;
+    int killsSinceHeal;
+    float counterRemaining, combatTime;
     public int Health { get; private set; } = 10;
     public int Level { get; private set; } = 1;
     public double Experience { get; private set; }
-    public double RequiredExperience { get; private set; } = 5;
-    public int OwnedSwordCount => ownedSwordCount;
+    public double RequiredExperience { get; private set; } = 3;
+    public int OwnedSwordCount => InventoryWeapons().Count;
     public int EnemyCount => enemies.Count;
     public bool IsGameOver => Health <= 0;
 
     void ResetSurvival()
     {
         ResetRewards();
+        ResetWeaponEffects();
+        hasCounter = hasKillHeal = false;
+        killsSinceHeal = 0;
+        counterRemaining = combatTime = 0;
         foreach (Enemy enemy in enemies)
             Destroy(enemy.Root.gameObject);
         enemies.Clear();
         Health = 10;
         Level = 1;
         Experience = 0;
-        RequiredExperience = 5;
+        RequiredExperience = Mathf.Max(1, initialRequiredExperience);
         pendingSwords = 0;
         spawnTimer = .5f;
         invulnerability = 0;
@@ -61,24 +82,28 @@ public sealed partial class TurnActors
 
     void UpdateSurvival(float dt)
     {
+        combatTime += dt;
+        counterRemaining = Mathf.Max(0, counterRemaining - dt);
         invulnerability = Mathf.Max(0, invulnerability - dt);
         heroRenderer.color = invulnerability > 0 && Mathf.Sin(Time.time * 30) > 0
             ? new Color(1, .4f, .4f, .4f) : Color.white;
         spawnTimer -= dt;
         if (spawnTimer <= 0)
         {
-            spawnTimer = Mathf.Max(.1f, spawnInterval);
-            SpawnEnemy();
+            spawnTimer = CurrentSpawnInterval;
+            for (int i = 0; i < CurrentSpawnCount; i++)
+                SpawnEnemy();
         }
 
-        foreach (Enemy enemy in enemies)
+        for (int enemyIndex = enemies.Count - 1; enemyIndex >= 0; enemyIndex--)
         {
+            Enemy enemy = enemies[enemyIndex];
             Vector2 position = enemy.Root.localPosition;
             enemy.AttackTimer -= dt;
             if (enemy.KnockbackTimer > 0)
             {
                 float step = Mathf.Min(dt, enemy.KnockbackTimer);
-                enemy.Root.localPosition = ClampTarget(position + enemy.KnockbackDirection * knockbackSpeed * step);
+                enemy.Root.localPosition = ClampTarget(position + enemy.KnockbackDirection * enemy.KnockbackSpeed * step);
                 enemy.KnockbackTimer -= dt;
                 enemy.Renderer.color = Color.white;
                 continue;
@@ -100,8 +125,8 @@ public sealed partial class TurnActors
             }
             enemy.Root.localPosition = ClampTarget(position);
             if (position.sqrMagnitude <= .65f * .65f)
-                DamagePlayer();
-            if (IsGameOver)
+                DamagePlayer(enemy);
+            if (IsGameOver || IsChoosingReward)
                 break;
         }
     }
@@ -151,6 +176,7 @@ public sealed partial class TurnActors
         float nearest = float.PositiveInfinity;
         foreach (Enemy enemy in enemies)
         {
+            if (sword.FlightHits.Contains(enemy)) continue;
             Vector2 relative = bladeBase - (Vector2)enemy.Root.localPosition;
             float projection = Vector2.Dot(relative, direction);
             float discriminant = projection * projection - relative.sqrMagnitude + radius * radius;
@@ -183,22 +209,30 @@ public sealed partial class TurnActors
                 continue;
             sword.ReturnHits.Add(enemy);
             SpawnHitBurst(position, new Color(1, .77f, .34f));
-            DamageEnemy(enemy, Mathf.Max(1, sword.FusionSize), travel.normalized);
+            DamageEnemy(enemy, SwordDamage(sword), travel.normalized, WeaponKnockback(sword));
         }
     }
 
-    void DamageEnemy(Enemy enemy, int damage, Vector2 direction)
+    void DamageEnemy(Enemy enemy, int damage, Vector2 direction, float knockback = -1)
     {
+        if (!enemies.Contains(enemy) || enemy.Health <= 0) return;
         enemy.Health -= damage;
         float healthRatio = Mathf.Clamp01((float)enemy.Health / enemy.MaxHealth);
         enemy.HealthFill.localScale = new Vector3(.94f * healthRatio, .08f, 1);
         enemy.HealthFill.localPosition = new Vector2(-.47f * (1 - healthRatio), .8f);
         enemy.KnockbackDirection = direction;
+        enemy.KnockbackSpeed = knockback < 0 ? knockbackSpeed : knockback;
         enemy.KnockbackTimer = knockbackDuration;
         if (enemy.Health > 0)
             return;
         enemies.Remove(enemy);
+        foreach (Sword weapon in swords) weapon.GuardHits.Remove(enemy);
         Destroy(enemy.Root.gameObject);
+        if (hasKillHeal && ++killsSinceHeal >= 10)
+        {
+            killsSinceHeal -= 10;
+            Health = Mathf.Min(10, Health + 1);
+        }
         GainExperience(1);
     }
 
@@ -208,8 +242,9 @@ public sealed partial class TurnActors
         while (Experience >= RequiredExperience)
         {
             Experience -= RequiredExperience;
-            RequiredExperience += 5;
+            RequiredExperience += Mathf.Max(1, requiredExperienceIncrease);
             Level++;
+            spawnTimer = Mathf.Min(spawnTimer, CurrentSpawnInterval);
             QueueLevelReward();
             SpawnHitBurst(Vector2.zero, ActiveBlade);
         }
@@ -217,18 +252,18 @@ public sealed partial class TurnActors
 
     void FlushPendingSwords()
     {
+        bool changed = pendingSwords > 0 || pendingSplits.Count > 0;
+        foreach (Sword compound in pendingSplits) SplitReturnedWeapon(compound);
+        pendingSplits.Clear();
         while (pendingSwords > 0)
         {
             pendingSwords--;
-            Sword sword = CreateSword("Growth sword");
-            sword.Root.localPosition = Vector2.right * OrbitRadius;
-            sword.PreviousPosition = sword.Root.localPosition;
-            swords.Add(sword);
-            orbiting.Add(sword);
+            AddWeapon(WeaponKind.Sword);
         }
+        if (changed) CheckSynergies();
     }
 
-    void DamagePlayer()
+    void DamagePlayer(Enemy contact = null)
     {
         if (IsGameOver || invulnerability > 0)
             return;
@@ -236,5 +271,12 @@ public sealed partial class TurnActors
         invulnerability = 2f;
         SpawnHitBurst(Vector2.zero, new Color(1, .3f, .3f));
         shakeTimer = ShakeDuration;
+        if (!IsGameOver && contact != null && hasCounter && counterRemaining <= 0 && enemies.Contains(contact))
+        {
+            counterRemaining = 10;
+            Vector2 direction = ((Vector2)contact.Root.localPosition).normalized;
+            SpawnHitBurst(contact.Root.localPosition, new Color(1, .7f, .3f));
+            DamageEnemy(contact, 1, direction);
+        }
     }
 }

@@ -52,6 +52,15 @@ public sealed partial class TurnActors : MonoBehaviour
 
     sealed class Sword
     {
+        public int Id;
+        public int DamageBonus;
+        public WeaponKind Kind;
+        public readonly List<Sword> Components = new();
+        public readonly HashSet<Enemy> FlightHits = new();
+        public readonly Dictionary<Enemy, float> GuardHits = new();
+        public bool ChainUsed, IsChainFlight;
+        public Enemy ChainTarget;
+        public float ChainRemaining;
         public Transform Root;
         public Transform Visual;
         public TrailRenderer Trail;
@@ -91,6 +100,7 @@ public sealed partial class TurnActors : MonoBehaviour
     readonly List<HitBurst> activeHits = new();
     readonly Stack<HitBurst> availableHits = new();
     readonly List<Sword> swords = new();
+    int nextWeaponId;
     readonly List<Sword> orbiting = new();
     Sprite square;
     Sprite bladeSprite;
@@ -139,8 +149,7 @@ public sealed partial class TurnActors : MonoBehaviour
         ResetSurvival();
         foreach (Sword sword in swords)
         {
-            sword.Root.gameObject.SetActive(false);
-            Destroy(sword.Root.gameObject);
+            DestroyWeaponObjects(sword);
         }
 
         foreach (Bullet bullet in bullets)
@@ -152,6 +161,7 @@ public sealed partial class TurnActors : MonoBehaviour
         UpdateHitBursts(HitEffectTime);
         UpdateHitEffects(0);
         swords.Clear();
+        nextWeaponId = 0;
         orbiting.Clear();
         orbitAngle = 0;
         recallTimer = 0;
@@ -172,8 +182,7 @@ public sealed partial class TurnActors : MonoBehaviour
         view.transform.position = cameraRestPosition;
         if (mergeSword != null)
         {
-            mergeSword.Root.gameObject.SetActive(false);
-            Destroy(mergeSword.Root.gameObject);
+            DestroyWeaponObjects(mergeSword);
             mergeSword = null;
         }
 
@@ -181,6 +190,7 @@ public sealed partial class TurnActors : MonoBehaviour
         for (int i = 0; i < InitialSwordCount; i++)
         {
             Sword sword = CreateSword($"Sword {i + 1}");
+            ApplyWeaponAppearance(sword);
             swords.Add(sword);
             orbiting.Add(sword);
             Vector2 outward = OrbitDirection(2 * Mathf.PI * i / InitialSwordCount);
@@ -218,7 +228,7 @@ public sealed partial class TurnActors : MonoBehaviour
         trail.sortingOrder = 2;
         trail.emitting = false;
 
-        return new Sword { Root = root, Visual = visual, Blade = blade, GroundMark = groundMark, Trail = trail };
+        return new Sword { Id = ++nextWeaponId, Root = root, Visual = visual, Blade = blade, GroundMark = groundMark, Trail = trail };
     }
 
     void Update()
@@ -232,8 +242,10 @@ public sealed partial class TurnActors : MonoBehaviour
 
         float dt = Time.deltaTime;
         UpdateSurvival(dt);
-        if (IsGameOver)
+        if (IsGameOver || IsChoosingReward)
             return;
+        UpdateWeaponEffects(dt);
+        if (IsGameOver || IsChoosingReward) return;
         recallTimer -= dt;
         recallArea.enabled = recallTimer > 0;
         if (IsSkillUnlocked(Skill.AutoIntercept) && keyboard?.digit2Key.wasPressedThisFrame == true)
@@ -350,17 +362,17 @@ public sealed partial class TurnActors : MonoBehaviour
 
             if (merging && TouchesMergeSword(previous, next))
             {
-                orbiting.RemoveAt(i--);
-                swords.Remove(sword);
-                sword.Root.gameObject.SetActive(false);
-                Destroy(sword.Root.gameObject);
-                mergeSword.FusionSize += Mathf.Max(1, sword.FusionSize);
-                SetFusionSize(mergeSword, orbitVisual: true);
+                AbsorbIntoMerge(sword);
+                i--;
                 shakeTimer = ShakeDuration;
             }
         }
         if (guarding)
+        {
+            UpdateGuardDamage();
+            if (IsChoosingReward || IsGameOver) return;
             InterceptWithFormation();
+        }
         RemoveArrivedBullets();
     }
 
@@ -537,13 +549,16 @@ public sealed partial class TurnActors : MonoBehaviour
         }
     }
 
-    static float SwordScale(Sword sword) => 1 + .22f * sword.FusionSize;
+    // Only the visual size is capped; damage and owned weapon count remain unrestricted.
+    static float SwordScale(Sword sword) => Mathf.Min(3.5f, 1 + .22f * sword.FusionSize);
 
     void BeginMerge()
     {
         if (mergeSword == null && orbiting.Count > 0)
         {
             mergeSword = CreateSword("Fusion sword");
+            mergeSword.Kind = WeaponKind.TemporaryFusion;
+            ApplyWeaponAppearance(mergeSword);
             mergeSword.Root.localPosition = Vector2.up * OrbitRadius;
             mergeSword.Blade.color = FusionBlade;
             PointSword(mergeSword, Vector2.up);
@@ -569,6 +584,7 @@ public sealed partial class TurnActors : MonoBehaviour
 
     void FinishMerge()
     {
+        if (mergeSword == null) return;
         if (mergeSword.FusionSize > 0)
         {
             swords.Add(mergeSword);
@@ -639,7 +655,7 @@ public sealed partial class TurnActors : MonoBehaviour
     Vector2 ClampSwordPosition(Sword sword, Vector2 point)
     {
         // Leave room for the whole sword (including its grip) and camera shake.
-        float margin = .7f * SwordScale(sword);
+        float margin = .7f * SwordScale(sword) + sword.Visual.localPosition.magnitude;
         Vector2 center = transform.InverseTransformPoint(cameraRestPosition);
         float halfY = Mathf.Max(0, view.orthographicSize - margin);
         float halfX = Mathf.Max(0, view.orthographicSize * view.aspect - margin);
@@ -658,7 +674,7 @@ public sealed partial class TurnActors : MonoBehaviour
         StopSwordAtBoundary(sword);
     }
 
-    static void StopSwordAtBoundary(Sword sword)
+    void StopSwordAtBoundary(Sword sword)
     {
         if (sword.InterceptTarget != null)
             sword.InterceptTarget.Reserved = false;
@@ -680,7 +696,7 @@ public sealed partial class TurnActors : MonoBehaviour
                 continue;
 
             BeginFlight(sword, ClampTarget(2 * aim - (Vector2)sword.Root.localPosition));
-            sword.Blade.color = sword.FusionSize > 0 ? FusionBlade : ActiveBlade;
+            sword.Blade.color = ActiveWeaponColor(sword);
             sword.GroundMark.enabled = false;
         }
     }
@@ -754,7 +770,7 @@ public sealed partial class TurnActors : MonoBehaviour
         target.Reserved = true;
         sword.InterceptTarget = target;
         sword.State = SwordState.Intercepting;
-        sword.Blade.color = sword.FusionSize > 0 ? FusionBlade : ActiveBlade;
+        sword.Blade.color = ActiveWeaponColor(sword);
         sword.GroundMark.enabled = false;
     }
 
@@ -790,15 +806,16 @@ public sealed partial class TurnActors : MonoBehaviour
         BeginReturn(sword);
     }
 
-    static void BeginReturn(Sword sword)
+    void BeginReturn(Sword sword)
     {
+        ClearFragments(sword);
         sword.ReturnHits.Clear();
         sword.State = SwordState.Returning;
-        sword.Blade.color = sword.FusionSize > 0 ? FusionBlade : ActiveBlade;
+        sword.Blade.color = ActiveWeaponColor(sword);
         sword.GroundMark.enabled = false;
     }
 
-    static void AdvancePlanted(Sword sword, float dt)
+    void AdvancePlanted(Sword sword, float dt)
     {
         sword.AutoRecallRemaining = Mathf.Max(0, sword.AutoRecallRemaining - dt);
         if (sword.AutoRecallRemaining <= 0)
@@ -816,6 +833,10 @@ public sealed partial class TurnActors : MonoBehaviour
         sword.FlightDistanceRemaining = travel.magnitude;
         sword.InterceptsRemaining = 1 + sword.FusionSize;
         sword.Recovery = 0;
+        sword.FlightHits.Clear();
+        sword.GuardHits.Clear();
+        sword.ChainUsed = sword.IsChainFlight = false;
+        sword.ChainTarget = null;
         SetFusionSize(sword, orbitVisual: false);
     }
 
@@ -823,6 +844,16 @@ public sealed partial class TurnActors : MonoBehaviour
     {
         Vector2 position = sword.Root.localPosition;
         Vector2 destination = sword.Target;
+        if (sword.IsChainFlight)
+        {
+            sword.ChainRemaining -= dt;
+            if (sword.ChainRemaining <= 0 || !enemies.Contains(sword.ChainTarget))
+            {
+                PlantSword(sword);
+                return;
+            }
+            destination = sword.ChainTarget.Root.localPosition;
+        }
         float nearest = InterceptRange * InterceptRange;
         int targetIndex = -1;
         for (int i = 0; i < bullets.Count; i++)
@@ -837,7 +868,7 @@ public sealed partial class TurnActors : MonoBehaviour
             targetIndex = i;
         }
 
-        float speed = LaunchSpeed * Mathf.Lerp(1, .18f, sword.Recovery / InterceptRecovery);
+        float speed = WeaponSpeed(sword) * Mathf.Lerp(1, .18f, sword.Recovery / InterceptRecovery);
         sword.Recovery = Mathf.Max(0, sword.Recovery - dt);
         Vector2 next;
         if (targetIndex >= 0)
@@ -848,11 +879,11 @@ public sealed partial class TurnActors : MonoBehaviour
         }
         else
         {
-            destination = EnemyHomingTarget(sword, position);
+            if (!sword.IsChainFlight) destination = EnemyHomingTarget(sword, position);
             Vector2 desired = (destination - position).normalized;
-            float turn = Mathf.Clamp(Vector2.SignedAngle(sword.FlightDirection, desired),
-                -enemyHomingTurnSpeed * dt, enemyHomingTurnSpeed * dt);
-            sword.FlightDirection = Quaternion.Euler(0, 0, turn) * sword.FlightDirection;
+            float turnSpeed = enemyHomingTurnSpeed + 10 * homingUpgrades;
+            float turn = Mathf.Clamp(Vector2.SignedAngle(sword.FlightDirection, desired), -turnSpeed * dt, turnSpeed * dt);
+            sword.FlightDirection = sword.IsChainFlight ? desired : (Vector2)(Quaternion.Euler(0, 0, turn) * sword.FlightDirection);
             float step = Mathf.Min(speed * dt, sword.FlightDistanceRemaining, Vector2.Distance(position, destination));
             next = ClampTarget(position + sword.FlightDirection * step);
         }
@@ -903,11 +934,13 @@ public sealed partial class TurnActors : MonoBehaviour
 
     Vector2 EnemyHomingTarget(Sword sword, Vector2 position)
     {
-        float nearest = enemyHomingRange * enemyHomingRange;
-        float minimumDot = Mathf.Cos(enemyHomingHalfAngle * Mathf.Deg2Rad);
+        float range = enemyHomingRange + .25f * homingUpgrades;
+        float nearest = range * range;
+        float minimumDot = Mathf.Cos((enemyHomingHalfAngle + 5 * homingUpgrades) * Mathf.Deg2Rad);
         Vector2 target = sword.Target;
         foreach (Enemy enemy in enemies)
         {
+            if (sword.FlightHits.Contains(enemy)) continue;
             Vector2 offset = (Vector2)enemy.Root.localPosition - position;
             float distance = offset.sqrMagnitude;
             if (distance > nearest || distance < .000001f)
@@ -925,28 +958,35 @@ public sealed partial class TurnActors : MonoBehaviour
     bool TryReboundFromEnemy(Sword sword, Vector2 from, Vector2 to)
     {
         Vector2 travel = to - from;
-        if (travel.sqrMagnitude <= .000001f)
-            return false;
-
+        if (travel.sqrMagnitude <= .000001f) return false;
         Vector2 direction = travel.normalized;
-        Enemy enemy = FindFirstEnemyHit(sword, from, to, out float distance);
-        if (enemy == null)
-            return false;
-        Vector2 enemyPosition = enemy.Root.localPosition;
-        Vector2 impact = from + direction * distance;
-        Vector2 normal = (impact - enemyPosition).normalized;
-        Vector2 rebound = normal.sqrMagnitude > 0 && Vector2.Dot(direction, normal) < 0
-            ? Vector2.Reflect(direction, normal) : -direction;
-        sword.Root.localPosition = impact;
-        sword.Target = ChooseReboundTarget(impact, rebound);
-        sword.State = SwordState.Rebounding;
-        PointSword(sword, sword.Target - impact);
-        SpawnHitBurst(impact, new Color(1, .77f, .34f));
-        DamageEnemy(enemy, Mathf.Max(1, sword.FusionSize), direction);
-        UpdateHitEffects(0);
-        return true;
+        while (true)
+        {
+            Enemy enemy = FindFirstEnemyHit(sword, from, to, out float distance);
+            if (enemy == null) return false;
+            Vector2 enemyPosition = enemy.Root.localPosition;
+            Vector2 impact = from + direction * distance;
+            sword.FlightHits.Add(enemy);
+            SpawnHitBurst(impact, new Color(1, .77f, .34f));
+            DamageEnemy(enemy, SwordDamage(sword), direction, WeaponKnockback(sword));
+            ForwardSpecialEffects(sword, enemy, impact);
+            if (StartChain(sword, enemy, impact))
+            {
+                sword.Root.localPosition = impact;
+                return true;
+            }
+            if ((Abilities(sword) & Ability.Pierce) != 0) continue;
+            Vector2 normal = (impact - enemyPosition).normalized;
+            Vector2 rebound = normal.sqrMagnitude > 0 && Vector2.Dot(direction, normal) < 0
+                ? Vector2.Reflect(direction, normal) : -direction;
+            sword.Root.localPosition = impact;
+            sword.Target = ChooseReboundTarget(impact, rebound);
+            sword.State = SwordState.Rebounding;
+            sword.IsChainFlight = false;
+            PointSword(sword, sword.Target - impact);
+            return true;
+        }
     }
-
     static Vector2 ChooseReboundTarget(Vector2 impact, Vector2 rebound)
     {
         float distance = Random.Range(ReboundMinDistance, ReboundMaxDistance);
@@ -1038,15 +1078,17 @@ public sealed partial class TurnActors : MonoBehaviour
         }
     }
 
-    static void PlantSword(Sword sword)
+    void PlantSword(Sword sword)
     {
+        bool newlyPlanted = sword.State != SwordState.Planted;
         sword.State = SwordState.Planted;
-        sword.AutoRecallRemaining = AutoRecallDelay;
+        sword.AutoRecallRemaining = AutomaticRecallDelay;
         sword.Trail.emitting = false;
         SetFusionSize(sword, orbitVisual: false);
         sword.Root.localRotation = Quaternion.identity;
         sword.Blade.color = PlantedBlade;
         sword.GroundMark.enabled = true;
+        if (newlyPlanted) OnWeaponPlanted(sword);
     }
 
     static Vector2 ReturnTarget(Vector2 position) =>
@@ -1064,13 +1106,10 @@ public sealed partial class TurnActors : MonoBehaviour
             return;
 
         sword.ReturnHits.Clear();
-        if (sword.FusionSize > 0)
+        if (sword.Components.Count > 0)
         {
-            pendingSwords += sword.FusionSize - 1;
-            sword.FusionSize = 0;
-            sword.Blade.color = ActiveBlade;
-            sword.Visual.localScale = Vector3.one;
-            sword.Visual.localPosition = Vector2.zero;
+            if (!pendingSplits.Contains(sword)) pendingSplits.Add(sword);
+            return;
         }
         sword.State = SwordState.Orbiting;
         sword.PreviousPosition = next;
@@ -1163,4 +1202,3 @@ public sealed partial class TurnActors : MonoBehaviour
         return Sprite.Create(texture, new Rect(0, 0, size, size), Vector2.one * .5f, size);
     }
 }
-

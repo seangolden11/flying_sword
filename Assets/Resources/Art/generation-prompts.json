@@ -1,0 +1,315 @@
+[
+  {
+    "name": "sword",
+    "file": "Assets/Resources/Art/sword.png",
+    "tool": "image_gen built-in",
+    "prompt": "Create one production game sprite asset for Flying Sword: a single straight silver sword with teal glowing fuller and small gold hilt. Exact top-down orthographic sprite, blade tip pointing straight DOWN, handle UP. Crisp low resolution pixel art, restrained 24-color palette, dark navy outline, readable silhouette, consistent retro fantasy meets household objects style. Entire object centered, generous transparent padding, no floor, no shadow outside object, no text, no frame. This is the final individual sword sprite, not a mockup. Transparent background.",
+    "import": {
+      "filter": "Point",
+      "pixelsPerUnit": 64,
+      "maxTextureSize": 64,
+      "compression": "None",
+      "alpha": true
+    }
+  },
+  {
+    "name": "shard",
+    "file": "Assets/Resources/Art/shard.png",
+    "tool": "image_gen built-in",
+    "prompt": "Create one final production asset for Flying Sword, filename shard. Subject: a jagged split silver sword, three small teal crystal blade fragments around it. Crisp low-resolution 2D pixel art with visible square pixels, restrained 24-color palette, dark navy 1-pixel outline, teal/cyan light and muted gold accents. Consistent retro fantasy meets household objects game style. Orthographic top-down view for weapons, flat readable view for icons. For bladed weapons point tip straight DOWN and handle UP. One centered isolated asset with generous empty padding. Genuine transparent background, no ground, no backdrop, no outer shadow, no text, no labels, no panel, no extra alternatives. Strong silhouette readable at 48x48 in game.",
+    "import": {
+      "filter": "Point",
+      "pixelsPerUnit": 64,
+      "maxTextureSize": 64,
+      "compression": "None",
+      "alpha": true
+    }
+  },
+  {
+    "name": "trash",
+    "file": "Assets/Resources/Art/trash.png",
+    "tool": "image_gen built-in",
+    "prompt": "Create one final production asset for Flying Sword, filename trash. Subject: a green metal trash can with lid, top-down, small orange straps. Crisp low-resolution 2D pixel art with visible square pixels, restrained 24-color palette, dark navy 1-pixel outline, teal/cyan light and muted gold accents. Consistent retro fantasy meets household objects game style. Orthographic top-down view for weapons, flat readable view for icons. For bladed weapons point tip straight DOWN and handle UP. One centered isolated asset with generous empty padding. Genuine transparent background, no ground, no backdrop, no outer shadow, no text, no labels, no panel, no extra alternatives. Strong silhouette readable at 48x48 in game.",
+    "import": {
+      "filter": "Point",
+      "pixelsPerUnit": 64,
+      "maxTextureSize": 64,
+      "compression": "None",
+      "alpha": true
+    }
+  },
+  {
+    "name": "table",
+    "file": "Assets/Resources/Art/table.png",
+    "tool": "image_gen built-in",
+    "prompt": "Create one final production asset for Flying Sword, filename table. Subject: a sturdy brown wooden table with heavy gold reinforced corners, top-down. Crisp low-resolution 2D pixel art with visible square pixels, restrained 24-color palette, dark navy 1-pixel outline, teal/cyan light and muted gold accents. Consistent retro fantasy meets household objects game style. Orthographic top-down view for weapons, flat readable view for icons. For bladed weapons point tip straight DOWN and handle UP. One centered isolated asset with generous empty padding. Genuine transparent background, no ground, no backdrop, no outer shadow, no text, no labels, no panel, no extra alternatives. Strong silhouette readable at 48x48 in game.",
+    "import": {
+      "filter": "Point",
+      "pixelsPerUnit": 64,
+      "maxTextureSize": 64,
+      "compression": "None",
+      "alpha": true
+    }
+  },
+  {
+    "name": "monitor",
+    "file": "Assets/Resources/Art/monitor.png",
+    "tool": "image_gen built-in",
+    "prompt": "Create one final production asset for Flying Sword, filename monitor. Subject: an old CRT computer monitor with bright cyan electric screen and tiny blue sparks. Crisp low-resolution 2D pixel art with visible square pixels, restrained 24-color palette, dark navy 1-pixel outline, teal/cyan light and muted gold accents. Consistent retro fantasy meets household objects game style. Orthographic top-down view for weapons, flat readable view for icons. For bladed weapons point tip straight DOWN and handle UP. One centered isolated asset with generous empty padding. Genuine transparent background, no ground, no backdrop, no outer shadow, no text, no labels, no panel, no extra alternatives. Strong silhouette readable at 48x48 in game.",
+    "import": {
+      "filter": "Point",
+      "pixelsPerUnit": 64,
+      "maxTextureSize": 64,
+      "compression": "None",
+      "alpha": true
+    }
+  },
+  {
+    "name": "fencing",
+    "file": "Assets/Resources/Art/fencing.png",
+    "tool": "image_gen built-in",
+    "prompt": "Create one final production asset for Flying Sword, filename fencing. Subject: an elegant narrow silver fencing rapier with round gold guard, long thin blade. Crisp low-resolution 2D pixel art with visible square pixels, restrained 24-color palette, dark navy 1-pixel outline, teal/cyan light and muted gold accents. Consistent retro fantasy meets household objects game style. Orthographic top-down view for weapons, flat readable view for icons. For bladed weapons point tip straight DOWN and handle UP. One centered isolated asset with generous empty padding. Genuine transparent background, no ground, no backdrop, no outer shadow, no text, no labels, no panel, no extra alternatives. Strong silhouette readable at 48x48 in game.",
+    "import": {
+      "filter": "Point",
+      "pixelsPerUnit": 64,
+      "maxTextureSize": 64,
+      "compression": "None",
+      "alpha": true
+    }
+  },
+  {
+    "name": "washer",
+    "file": "Assets/Resources/Art/washer.png",
+    "tool": "image_gen built-in",
+    "prompt": "Create one final production asset for Flying Sword, filename washer. Subject: a white and blue washing machine with circular swirling turquoise drum. Crisp low-resolution 2D pixel art with visible square pixels, restrained 24-color palette, dark navy 1-pixel outline, teal/cyan light and muted gold accents. Consistent retro fantasy meets household objects game style. Orthographic top-down view for weapons, flat readable view for icons. For bladed weapons point tip straight DOWN and handle UP. One centered isolated asset with generous empty padding. Genuine transparent background, no ground, no backdrop, no outer shadow, no text, no labels, no panel, no extra alternatives. Strong silhouette readable at 48x48 in game.",
+    "import": {
+      "filter": "Point",
+      "pixelsPerUnit": 64,
+      "maxTextureSize": 64,
+      "compression": "None",
+      "alpha": true
+    }
+  },
+  {
+    "name": "synergy_a",
+    "file": "Assets/Resources/Art/synergy_a.png",
+    "tool": "image_gen built-in",
+    "prompt": "Create one final production asset for Flying Sword, filename synergy_a. Subject: a distinct powerful improvised weapon combining a green trash can body, wooden table armor and cyan electric CRT monitor, compact readable silhouette. Crisp low-resolution 2D pixel art with visible square pixels, restrained 24-color palette, dark navy 1-pixel outline, teal/cyan light and muted gold accents. Consistent retro fantasy meets household objects game style. Orthographic top-down view for weapons, flat readable view for icons. For bladed weapons point tip straight DOWN and handle UP. One centered isolated asset with generous empty padding. Genuine transparent background, no ground, no backdrop, no outer shadow, no text, no labels, no panel, no extra alternatives. Strong silhouette readable at 48x48 in game.",
+    "import": {
+      "filter": "Point",
+      "pixelsPerUnit": 64,
+      "maxTextureSize": 64,
+      "compression": "None",
+      "alpha": true
+    }
+  },
+  {
+    "name": "synergy_b",
+    "file": "Assets/Resources/Art/synergy_b.png",
+    "tool": "image_gen built-in",
+    "prompt": "Create one final production asset for Flying Sword, filename synergy_b. Subject: a distinct powerful fantasy sword combining a broad silver sword, floating teal blade fragments and long gold rapier guard. Crisp low-resolution 2D pixel art with visible square pixels, restrained 24-color palette, dark navy 1-pixel outline, teal/cyan light and muted gold accents. Consistent retro fantasy meets household objects game style. Orthographic top-down view for weapons, flat readable view for icons. For bladed weapons point tip straight DOWN and handle UP. One centered isolated asset with generous empty padding. Genuine transparent background, no ground, no backdrop, no outer shadow, no text, no labels, no panel, no extra alternatives. Strong silhouette readable at 48x48 in game.",
+    "import": {
+      "filter": "Point",
+      "pixelsPerUnit": 64,
+      "maxTextureSize": 64,
+      "compression": "None",
+      "alpha": true
+    }
+  },
+  {
+    "name": "add",
+    "file": "Assets/Resources/Art/add.png",
+    "tool": "image_gen built-in",
+    "prompt": "Create one final production asset for Flying Sword, filename add. Subject: UI icon of a silver sword and bright green plus sign. Crisp low-resolution 2D pixel art with visible square pixels, restrained 24-color palette, dark navy 1-pixel outline, teal/cyan light and muted gold accents. Consistent retro fantasy meets household objects game style. Orthographic top-down view for weapons, flat readable view for icons. For bladed weapons point tip straight DOWN and handle UP. One centered isolated asset with generous empty padding. Genuine transparent background, no ground, no backdrop, no outer shadow, no text, no labels, no panel, no extra alternatives. Strong silhouette readable at 48x48 in game.",
+    "import": {
+      "filter": "Point",
+      "pixelsPerUnit": 64,
+      "maxTextureSize": 64,
+      "compression": "None",
+      "alpha": true
+    }
+  },
+  {
+    "name": "delete",
+    "file": "Assets/Resources/Art/delete.png",
+    "tool": "image_gen built-in",
+    "prompt": "Create one final production asset for Flying Sword, filename delete. Subject: UI icon of a silver sword and red cross mark. Crisp low-resolution 2D pixel art with visible square pixels, restrained 24-color palette, dark navy 1-pixel outline, teal/cyan light and muted gold accents. Consistent retro fantasy meets household objects game style. Orthographic top-down view for weapons, flat readable view for icons. For bladed weapons point tip straight DOWN and handle UP. One centered isolated asset with generous empty padding. Genuine transparent background, no ground, no backdrop, no outer shadow, no text, no labels, no panel, no extra alternatives. Strong silhouette readable at 48x48 in game.",
+    "import": {
+      "filter": "Point",
+      "pixelsPerUnit": 64,
+      "maxTextureSize": 64,
+      "compression": "None",
+      "alpha": true
+    }
+  },
+  {
+    "name": "copy",
+    "file": "Assets/Resources/Art/copy.png",
+    "tool": "image_gen built-in",
+    "prompt": "Create one final production asset for Flying Sword, filename copy. Subject: UI icon of two overlapping silver swords. Crisp low-resolution 2D pixel art with visible square pixels, restrained 24-color palette, dark navy 1-pixel outline, teal/cyan light and muted gold accents. Consistent retro fantasy meets household objects game style. Orthographic top-down view for weapons, flat readable view for icons. For bladed weapons point tip straight DOWN and handle UP. One centered isolated asset with generous empty padding. Genuine transparent background, no ground, no backdrop, no outer shadow, no text, no labels, no panel, no extra alternatives. Strong silhouette readable at 48x48 in game.",
+    "import": {
+      "filter": "Point",
+      "pixelsPerUnit": 64,
+      "maxTextureSize": 64,
+      "compression": "None",
+      "alpha": true
+    }
+  },
+  {
+    "name": "attack",
+    "file": "Assets/Resources/Art/attack.png",
+    "tool": "image_gen built-in",
+    "prompt": "Create one final production asset for Flying Sword, filename attack. Subject: UI icon of a silver blade with orange upward arrow. Crisp low-resolution 2D pixel art with visible square pixels, restrained 24-color palette, dark navy 1-pixel outline, teal/cyan light and muted gold accents. Consistent retro fantasy meets household objects game style. Orthographic top-down view for weapons, flat readable view for icons. For bladed weapons point tip straight DOWN and handle UP. One centered isolated asset with generous empty padding. Genuine transparent background, no ground, no backdrop, no outer shadow, no text, no labels, no panel, no extra alternatives. Strong silhouette readable at 48x48 in game.",
+    "import": {
+      "filter": "Point",
+      "pixelsPerUnit": 64,
+      "maxTextureSize": 64,
+      "compression": "None",
+      "alpha": true
+    }
+  },
+  {
+    "name": "recall",
+    "file": "Assets/Resources/Art/recall.png",
+    "tool": "image_gen built-in",
+    "prompt": "Create one final production asset for Flying Sword, filename recall. Subject: UI icon of a silver sword and cyan returning curved arrow with a small clock. Crisp low-resolution 2D pixel art with visible square pixels, restrained 24-color palette, dark navy 1-pixel outline, teal/cyan light and muted gold accents. Consistent retro fantasy meets household objects game style. Orthographic top-down view for weapons, flat readable view for icons. For bladed weapons point tip straight DOWN and handle UP. One centered isolated asset with generous empty padding. Genuine transparent background, no ground, no backdrop, no outer shadow, no text, no labels, no panel, no extra alternatives. Strong silhouette readable at 48x48 in game.",
+    "import": {
+      "filter": "Point",
+      "pixelsPerUnit": 64,
+      "maxTextureSize": 64,
+      "compression": "None",
+      "alpha": true
+    }
+  },
+  {
+    "name": "homing",
+    "file": "Assets/Resources/Art/homing.png",
+    "tool": "image_gen built-in",
+    "prompt": "Create one final production asset for Flying Sword, filename homing. Subject: UI icon of a curved silver blade trajectory bending toward a red target. Crisp low-resolution 2D pixel art with visible square pixels, restrained 24-color palette, dark navy 1-pixel outline, teal/cyan light and muted gold accents. Consistent retro fantasy meets household objects game style. Orthographic top-down view for weapons, flat readable view for icons. For bladed weapons point tip straight DOWN and handle UP. One centered isolated asset with generous empty padding. Genuine transparent background, no ground, no backdrop, no outer shadow, no text, no labels, no panel, no extra alternatives. Strong silhouette readable at 48x48 in game.",
+    "import": {
+      "filter": "Point",
+      "pixelsPerUnit": 64,
+      "maxTextureSize": 64,
+      "compression": "None",
+      "alpha": true
+    }
+  },
+  {
+    "name": "fusion",
+    "file": "Assets/Resources/Art/fusion.png",
+    "tool": "image_gen built-in",
+    "prompt": "Create one final production asset for Flying Sword, filename fusion. Subject: UI icon of three small silver swords converging into one large gold sword. Crisp low-resolution 2D pixel art with visible square pixels, restrained 24-color palette, dark navy 1-pixel outline, teal/cyan light and muted gold accents. Consistent retro fantasy meets household objects game style. Orthographic top-down view for weapons, flat readable view for icons. For bladed weapons point tip straight DOWN and handle UP. One centered isolated asset with generous empty padding. Genuine transparent background, no ground, no backdrop, no outer shadow, no text, no labels, no panel, no extra alternatives. Strong silhouette readable at 48x48 in game.",
+    "editPrompt": "Edit this game skill icon: retain exactly the three small swords, arrows, and large gold sword, their pixel art and arrangement. Remove ALL white/gray background haze, fog, shadows, grain, and glow that fills the canvas. Everything outside the crisp outlined icon objects must be fully transparent alpha=0, especially all four corners and the entire border. Keep only small cyan effect pixels immediately adjacent to the icon. No white backdrop, no checkerboard baked in, no new objects or text. Final clean transparent pixel-art UI icon.",
+    "import": {
+      "filter": "Point",
+      "pixelsPerUnit": 64,
+      "maxTextureSize": 64,
+      "compression": "None",
+      "alpha": true
+    }
+  },
+  {
+    "name": "intercept",
+    "file": "Assets/Resources/Art/intercept.png",
+    "tool": "image_gen built-in",
+    "prompt": "Create one final production asset for Flying Sword, filename intercept. Subject: UI icon of a silver sword breaking a red bullet into teal sparks. Crisp low-resolution 2D pixel art with visible square pixels, restrained 24-color palette, dark navy 1-pixel outline, teal/cyan light and muted gold accents. Consistent retro fantasy meets household objects game style. Orthographic top-down view for weapons, flat readable view for icons. For bladed weapons point tip straight DOWN and handle UP. One centered isolated asset with generous empty padding. Genuine transparent background, no ground, no backdrop, no outer shadow, no text, no labels, no panel, no extra alternatives. Strong silhouette readable at 48x48 in game.",
+    "import": {
+      "filter": "Point",
+      "pixelsPerUnit": 64,
+      "maxTextureSize": 64,
+      "compression": "None",
+      "alpha": true
+    }
+  },
+  {
+    "name": "guard",
+    "file": "Assets/Resources/Art/guard.png",
+    "tool": "image_gen built-in",
+    "prompt": "Create one final production asset for Flying Sword, filename guard. Subject: UI icon of a ring of silver swords forming a circular blue shield. Crisp low-resolution 2D pixel art with visible square pixels, restrained 24-color palette, dark navy 1-pixel outline, teal/cyan light and muted gold accents. Consistent retro fantasy meets household objects game style. Orthographic top-down view for weapons, flat readable view for icons. For bladed weapons point tip straight DOWN and handle UP. One centered isolated asset with generous empty padding. Genuine transparent background, no ground, no backdrop, no outer shadow, no text, no labels, no panel, no extra alternatives. Strong silhouette readable at 48x48 in game.",
+    "import": {
+      "filter": "Point",
+      "pixelsPerUnit": 64,
+      "maxTextureSize": 64,
+      "compression": "None",
+      "alpha": true
+    }
+  },
+  {
+    "name": "counter",
+    "file": "Assets/Resources/Art/counter.png",
+    "tool": "image_gen built-in",
+    "prompt": "Create one final production asset for Flying Sword, filename counter. Subject: UI icon of a red impact against a silver thorn with orange outward arrow. Crisp low-resolution 2D pixel art with visible square pixels, restrained 24-color palette, dark navy 1-pixel outline, teal/cyan light and muted gold accents. Consistent retro fantasy meets household objects game style. Orthographic top-down view for weapons, flat readable view for icons. For bladed weapons point tip straight DOWN and handle UP. One centered isolated asset with generous empty padding. Genuine transparent background, no ground, no backdrop, no outer shadow, no text, no labels, no panel, no extra alternatives. Strong silhouette readable at 48x48 in game.",
+    "import": {
+      "filter": "Point",
+      "pixelsPerUnit": 64,
+      "maxTextureSize": 64,
+      "compression": "None",
+      "alpha": true
+    }
+  },
+  {
+    "name": "heal",
+    "file": "Assets/Resources/Art/heal.png",
+    "tool": "image_gen built-in",
+    "prompt": "Create one final production asset for Flying Sword, filename heal. Subject: UI icon of a glowing green heart with ten tiny gold tally dots around it. Crisp low-resolution 2D pixel art with visible square pixels, restrained 24-color palette, dark navy 1-pixel outline, teal/cyan light and muted gold accents. Consistent retro fantasy meets household objects game style. Orthographic top-down view for weapons, flat readable view for icons. For bladed weapons point tip straight DOWN and handle UP. One centered isolated asset with generous empty padding. Genuine transparent background, no ground, no backdrop, no outer shadow, no text, no labels, no panel, no extra alternatives. Strong silhouette readable at 48x48 in game.",
+    "import": {
+      "filter": "Point",
+      "pixelsPerUnit": 64,
+      "maxTextureSize": 64,
+      "compression": "None",
+      "alpha": true
+    }
+  },
+  {
+    "name": "reroll",
+    "file": "Assets/Resources/Art/reroll.png",
+    "tool": "image_gen built-in",
+    "prompt": "Create one final production asset for Flying Sword, filename reroll. Subject: UI icon of two curved gold arrows forming a circle around a small teal die. Crisp low-resolution 2D pixel art with visible square pixels, restrained 24-color palette, dark navy 1-pixel outline, teal/cyan light and muted gold accents. Consistent retro fantasy meets household objects game style. Orthographic top-down view for weapons, flat readable view for icons. For bladed weapons point tip straight DOWN and handle UP. One centered isolated asset with generous empty padding. Genuine transparent background, no ground, no backdrop, no outer shadow, no text, no labels, no panel, no extra alternatives. Strong silhouette readable at 48x48 in game.",
+    "import": {
+      "filter": "Point",
+      "pixelsPerUnit": 64,
+      "maxTextureSize": 64,
+      "compression": "None",
+      "alpha": true
+    }
+  },
+  {
+    "name": "electric",
+    "file": "Assets/Resources/Art/electric.png",
+    "tool": "image_gen built-in",
+    "prompt": "Create one final production asset for Flying Sword, filename electric. Subject: a single radial cyan electric explosion effect sprite with jagged lightning spokes and transparent gaps. Crisp low-resolution 2D pixel art with visible square pixels, restrained 24-color palette, dark navy 1-pixel outline, teal/cyan light and muted gold accents. Consistent retro fantasy meets household objects game style. Orthographic top-down view for weapons, flat readable view for icons. For bladed weapons point tip straight DOWN and handle UP. One centered isolated asset with generous empty padding. Genuine transparent background, no ground, no backdrop, no outer shadow, no text, no labels, no panel, no extra alternatives. Strong silhouette readable at 48x48 in game.",
+    "import": {
+      "filter": "Point",
+      "pixelsPerUnit": 64,
+      "maxTextureSize": 64,
+      "compression": "None",
+      "alpha": true
+    }
+  },
+  {
+    "name": "fragment_fx",
+    "file": "Assets/Resources/Art/fragment_fx.png",
+    "tool": "image_gen built-in",
+    "prompt": "Create one final production asset for Flying Sword, filename fragment_fx. Subject: a single radial burst of small sharp teal sword crystal fragments, combat effect sprite. Crisp low-resolution 2D pixel art with visible square pixels, restrained 24-color palette, dark navy 1-pixel outline, teal/cyan light and muted gold accents. Consistent retro fantasy meets household objects game style. Orthographic top-down view for weapons, flat readable view for icons. For bladed weapons point tip straight DOWN and handle UP. One centered isolated asset with generous empty padding. Genuine transparent background, no ground, no backdrop, no outer shadow, no text, no labels, no panel, no extra alternatives. Strong silhouette readable at 48x48 in game.",
+    "import": {
+      "filter": "Point",
+      "pixelsPerUnit": 64,
+      "maxTextureSize": 64,
+      "compression": "None",
+      "alpha": true
+    }
+  },
+  {
+    "name": "synergy_fx",
+    "file": "Assets/Resources/Art/synergy_fx.png",
+    "tool": "image_gen built-in",
+    "prompt": "Create one final production asset for Flying Sword, filename synergy_fx. Subject: a single circular golden fusion magic burst with bright teal center and small silver sparks, combat effect sprite. Crisp low-resolution 2D pixel art with visible square pixels, restrained 24-color palette, dark navy 1-pixel outline, teal/cyan light and muted gold accents. Consistent retro fantasy meets household objects game style. Orthographic top-down view for weapons, flat readable view for icons. For bladed weapons point tip straight DOWN and handle UP. One centered isolated asset with generous empty padding. Genuine transparent background, no ground, no backdrop, no outer shadow, no text, no labels, no panel, no extra alternatives. Strong silhouette readable at 48x48 in game.",
+    "import": {
+      "filter": "Point",
+      "pixelsPerUnit": 64,
+      "maxTextureSize": 64,
+      "compression": "None",
+      "alpha": true
+    }
+  }
+]

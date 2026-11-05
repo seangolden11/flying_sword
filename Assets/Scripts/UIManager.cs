@@ -1,18 +1,16 @@
 using UnityEngine;
 
-public sealed class UIManager : MonoBehaviour
+public sealed partial class UIManager : MonoBehaviour
 {
     static readonly Color Background = new Color32(14, 21, 34, 235);
     static readonly Color Text = new Color32(226, 236, 247, 255);
     static readonly Color KeyColor = new Color32(113, 248, 225, 255);
     GUIStyle keyLabel, controlLabel, burstLabel;
-    GUIStyle rewardTitle, rewardButton;
-    Vector2 rewardScroll;
     Font hudFont;
 
     void OnGUI()
     {
-        var actors = GetComponent<StageManager>().Actors;
+        var actors = GetComponent<StageManager>()?.Actors;
         if (actors == null)
             return;
 
@@ -20,13 +18,11 @@ public sealed class UIManager : MonoBehaviour
             hudFont = Font.CreateDynamicFontFromOSFont(new[] { "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans CJK KR" }, 14);
 
         if (actors.IsChoosingReward)
-        {
-            DrawRewards(actors);
             return;
-        }
         actors.DrawFusionCounts();
         DrawControls(actors);
         DrawSurvival(actors);
+        DrawInventory(actors);
     }
 
     void DrawControls(TurnActors actors)
@@ -43,7 +39,7 @@ public sealed class UIManager : MonoBehaviour
         DrawControl(4, "5", actors.IsSkillUnlocked(TurnActors.Skill.CursorFollow) ? "이기어검" : "이기어검 · 잠김");
         GUI.Label(new Rect(22, 132, width - 20, 22), "좌클릭 발사 · 우클릭 회수 (꾹 가능)", controlLabel);
         GUI.Label(new Rect(22, 155, width - 20, 22),
-            $"사용 가능 검 {actors.ActiveSwordCount}/{actors.OwnedSwordCount}", controlLabel);
+            $"공전 무기 {actors.ActiveSwordCount} · 보유 {actors.OwnedSwordCount}", controlLabel);
     }
 
     void DrawControl(int row, string key, string action)
@@ -76,47 +72,19 @@ public sealed class UIManager : MonoBehaviour
         }
     }
 
-    void DrawRewards(TurnActors actors)
+    void DrawInventory(TurnActors actors)
     {
-        Fill(new Rect(0, 0, Screen.width, Screen.height), new Color32(7, 12, 22, 235));
-        rewardTitle ??= Label(26, KeyColor, FontStyle.Bold);
-        rewardButton ??= new GUIStyle(GUI.skin.button)
-        {
-            font = hudFont, fontSize = 17, wordWrap = true,
-            alignment = TextAnchor.MiddleCenter, padding = new RectOffset(14, 14, 14, 14)
-        };
-        float width = Mathf.Min(760, Screen.width - 32);
-        float height = Mathf.Min(360, Screen.height - 32);
-        GUILayout.BeginArea(new Rect((Screen.width - width) * .5f, (Screen.height - height) * .5f, width, height));
-        GUILayout.Label("LEVEL UP", rewardTitle, GUILayout.Height(42));
-        GUILayout.Label("보상을 하나 선택하세요" +
-            (actors.PendingRewardCount > 1 ? $" · 남은 선택 {actors.PendingRewardCount}회" : ""),
-            Label(14, Text), GUILayout.Height(30));
-        rewardScroll = GUILayout.BeginScrollView(rewardScroll);
-        int columns = Mathf.Max(1, Mathf.FloorToInt((width - 24) / 210));
-        float cardWidth = (width - 24) / columns - 8;
-        int selectionId = actors.RewardSelectionId;
-        bool selected = false;
-        for (int first = 0; first < actors.RewardOptionCount && !selected; first += columns)
-        {
-            GUILayout.BeginHorizontal();
-            for (int i = first; i < Mathf.Min(first + columns, actors.RewardOptionCount); i++)
-            {
-                var reward = actors.GetRewardOption(i);
-                var content = new GUIContent(reward.name + "\n\n" + reward.description,
-                    reward.icon == null ? null : reward.icon.texture);
-                if (GUILayout.Button(content, rewardButton, GUILayout.Width(cardWidth), GUILayout.Height(140)))
-                {
-                    actors.ChooseReward(i, selectionId);
-                    selected = true;
-                    break;
-                }
-            }
-            GUILayout.EndHorizontal();
-        }
-        GUILayout.EndScrollView();
+        if (Screen.width < 650) return;
+        float height = Mathf.Min(260, Screen.height * .4f);
+        Rect panel = new Rect(Screen.width - 222, 12, 210, height);
+        Fill(panel, Background);
+        GUILayout.BeginArea(new Rect(panel.x + 8, panel.y + 6, panel.width - 16, panel.height - 12));
+        GUILayout.Label($"보유 무기 {actors.OwnedSwordCount}", Label(14, KeyColor, FontStyle.Bold));
+
+        for (int i = 0; i < Mathf.Min(3, actors.WeaponOptionCount); i++)
+            GUILayout.Label(actors.GetWeaponDescription(i), Label(12, Text));
+        if (actors.WeaponOptionCount > 3) GUILayout.Label($"외 {actors.WeaponOptionCount - 3}개 · 보상 대상 선택에서 전체 목록", Label(11, Text));
         GUILayout.EndArea();
-        if (selected) GUIUtility.ExitGUI();
     }
 
     static void Fill(Rect rect, Color color)

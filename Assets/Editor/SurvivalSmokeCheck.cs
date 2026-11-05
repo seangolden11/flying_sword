@@ -4,19 +4,31 @@ using System.Reflection;
 using UnityEditor;
 using UnityEngine;
 
-public static class SurvivalSmokeCheck
+public static partial class SurvivalSmokeCheck
 {
     const BindingFlags Private = BindingFlags.Instance | BindingFlags.NonPublic;
 
     public static void RunBatch()
     {
+        SessionState.SetBool("FlyingSword.SmokeBatch", true);
+        EditorApplication.playModeStateChanged -= OnPlayMode;
         EditorApplication.playModeStateChanged += OnPlayMode;
         EditorApplication.isPlaying = true;
+    }
+
+    [InitializeOnLoadMethod]
+    static void RestoreBatchAfterDomainReload()
+    {
+        if (!SessionState.GetBool("FlyingSword.SmokeBatch", false)) return;
+        EditorApplication.playModeStateChanged -= OnPlayMode;
+        EditorApplication.playModeStateChanged += OnPlayMode;
     }
 
     static void OnPlayMode(PlayModeStateChange state)
     {
         if (state != PlayModeStateChange.EnteredPlayMode) return;
+        if (!SessionState.GetBool("FlyingSword.SmokeBatch", false)) return;
+        SessionState.SetBool("FlyingSword.SmokeBatch", false);
         EditorApplication.playModeStateChanged -= OnPlayMode;
         try { Run(); EditorApplication.Exit(0); }
         catch (Exception error) { Debug.LogException(error); EditorApplication.Exit(1); }
@@ -52,6 +64,14 @@ public static class SurvivalSmokeCheck
             CheckTimedRecall(actors);
             actors.ResetArena();
             CheckRewardChoices(actors);
+            actors.ResetArena();
+            CheckGrowthRewards(actors);
+            actors.ResetArena();
+            CheckIntegratedWeapons(actors);
+            actors.ResetArena();
+            CheckIntegratedGrowth(actors);
+            actors.ResetArena();
+            CheckIntegratedArtAndUI(actors);
             actors.ResetArena();
 
             Call(actors, "LaunchSword", new Vector2(5, 0));
@@ -109,27 +129,27 @@ public static class SurvivalSmokeCheck
             Call(actors, "DamageEnemy", melee, 1, Vector2.up);
             Check(enemies.Count == 0 && actors.Experience == 1, "Melee dies on second hit and gives one XP");
             Set(actors, "rangedEnemyChance", 1f);
-            for (int i = 0; i < 4; i++)
+            for (int i = 0; i < 2; i++)
             {
                 Call(actors, "SpawnEnemy");
                 Call(actors, "DamageEnemy", enemies[0], 1, Vector2.up);
             }
             Call(actors, "FlushPendingSwords");
-            Check(actors.Level == 2 && actors.Experience == 0 && actors.RequiredExperience == 10,
-                "Five kills level up; next threshold increases by five");
+            Check(actors.Level == 2 && actors.Experience == 0 && actors.RequiredExperience == 5,
+                "Three kills level up; next threshold increases by two");
             Check(actors.IsChoosingReward && actors.ActiveSwordCount == 3 && actors.OwnedSwordCount == 3,
                 "Level waits for a reward instead of automatically adding a sword");
-            Check(actors.ChooseReward(0, actors.RewardSelectionId), "First level reward can be chosen");
+            Check(ChooseKnownReward(actors, TurnActors.RewardEffect.AddSword), "First level reward can be chosen");
             Check(actors.ActiveSwordCount == 4 && actors.OwnedSwordCount == 4, "Selected reward adds one sword");
-            for (int i = 0; i < 10; i++)
+            for (int i = 0; i < 5; i++)
             {
                 Call(actors, "SpawnEnemy");
                 Call(actors, "DamageEnemy", enemies[0], 1, Vector2.up);
             }
             Call(actors, "FlushPendingSwords");
-            Check(actors.ChooseReward(2, actors.RewardSelectionId), "Later level also offers a reward");
-            Check(actors.Level == 3 && actors.RequiredExperience == 15 && actors.ActiveSwordCount == 5,
-                "Second level increases threshold by five and adds exactly one sword");
+            Check(ChooseKnownReward(actors, TurnActors.RewardEffect.AddSword), "Later level also offers a reward");
+            Check(actors.Level == 3 && actors.RequiredExperience == 7 && actors.ActiveSwordCount == 5,
+                "Second level increases threshold by two and adds exactly one sword");
 
             Call(actors, "DamagePlayer");
             Call(actors, "DamagePlayer");
@@ -142,7 +162,7 @@ public static class SurvivalSmokeCheck
             Check(actors.IsGameOver, "Ten damage triggers game over");
             actors.ResetArena();
             Check(actors.Health == 10 && actors.Level == 1 && actors.Experience == 0 &&
-                actors.RequiredExperience == 5 && actors.ActiveSwordCount == 3 && actors.EnemyCount == 0,
+                actors.RequiredExperience == 3 && actors.ActiveSwordCount == 3 && actors.EnemyCount == 0,
                 "Reset restores survival state");
             Debug.Log("Flying Sword survival smoke check PASSED");
         }
@@ -348,7 +368,6 @@ public static class SurvivalSmokeCheck
                 actors.ResetArena();
                 foreach (TurnActors.Skill skill in Enum.GetValues(typeof(TurnActors.Skill)))
                     Check(!actors.IsSkillUnlocked(skill), "All five skills start locked");
-                Check(actors.RewardOptionCount == 3, "Three reward options are available");
                 Call(actors, "LaunchSword", new Vector2(5, 0));
                 object planted = null;
                 foreach (object sword in (IList)Field(actors, "swords"))
@@ -359,13 +378,15 @@ public static class SurvivalSmokeCheck
                 float remaining = (float)planted.GetType().GetField("AutoRecallRemaining").GetValue(planted);
                 float spawnBefore = (float)Field(actors, "spawnTimer");
                 Time.timeScale = .5f;
-                Call(actors, "GainExperience", 7d);
+                Call(actors, "GainExperience", 5d);
+                Check(actors.RewardOptionCount == 3, "Three reward options are available after level up");
                 Check(actors.Level == 2 && actors.Experience == 2 && actors.OwnedSwordCount == 3 &&
                     actors.PendingRewardCount == 1 && Time.timeScale == 0, "Level pauses, preserves excess XP, and grants nothing yet");
                 Call(actors, "Update");
                 Check(root.localPosition == position && (float)Field(actors, "spawnTimer") == spawnBefore &&
                     (float)planted.GetType().GetField("AutoRecallRemaining").GetValue(planted) == remaining,
                     "Combat and recall timers do not advance while choosing");
+                OfferRewardForTest(actors, TurnActors.RewardEffect.AddSword, choice);
                 int selectionId = actors.RewardSelectionId;
                 Check(!actors.ChooseReward(-1, selectionId) && actors.IsChoosingReward, "Invalid choice does not consume reward");
                 Check(actors.ChooseReward(choice, selectionId) && actors.OwnedSwordCount == 4 && actors.ActiveSwordCount == 3,
@@ -378,9 +399,10 @@ public static class SurvivalSmokeCheck
             }
             actors.ResetArena();
             Time.timeScale = 1;
-            Call(actors, "GainExperience", 37d);
-            Check(actors.Level == 4 && actors.Experience == 7 && actors.RequiredExperience == 20 &&
+            Call(actors, "GainExperience", 22d);
+            Check(actors.Level == 4 && actors.Experience == 7 && actors.RequiredExperience == 9 &&
                 actors.PendingRewardCount == 3 && actors.OwnedSwordCount == 3, "Multiple levels queue one reward each");
+            OfferRewardForTest(actors, TurnActors.RewardEffect.AddSword, 1);
             int oldId = actors.RewardSelectionId;
             Check(actors.ChooseReward(1, oldId), "First queued reward applies");
             Check(!actors.ChooseReward(1, oldId) && actors.PendingRewardCount == 2 && Time.timeScale == 0,
@@ -389,9 +411,9 @@ public static class SurvivalSmokeCheck
             Check(Time.timeScale == 1, "Disabling component releases its pause");
             actors.enabled = true;
             Check(Time.timeScale == 0, "Re-enabling preserves pending reward pause");
-            Check(actors.ChooseReward(0, actors.RewardSelectionId) && Time.timeScale == 0,
+            Check(ChooseKnownReward(actors, TurnActors.RewardEffect.AddSword) && Time.timeScale == 0,
                 "Combat stays paused until all queued rewards are chosen");
-            Check(actors.ChooseReward(2, actors.RewardSelectionId) && Time.timeScale == 1 && actors.OwnedSwordCount == 6 &&
+            Check(ChooseKnownReward(actors, TurnActors.RewardEffect.AddSword) && Time.timeScale == 1 && actors.OwnedSwordCount == 6 &&
                 actors.ActiveSwordCount == 6 && !actors.IsChoosingReward, "Three choices grant exactly three swords and resume");
             actors.UnlockSkill(TurnActors.Skill.AutoIntercept);
             Check(actors.IsSkillUnlocked(TurnActors.Skill.AutoIntercept), "Skill unlock state can be set for future items");
@@ -401,10 +423,143 @@ public static class SurvivalSmokeCheck
         finally { Time.timeScale = originalTimeScale; }
     }
 
+    // Deterministic offers isolate effect tests; sampling itself is tested separately below.
+    static void OfferRewardForTest(TurnActors actors, TurnActors.RewardEffect effect, int slot = 0)
+    {
+        var offers = (IList)Field(actors, "offeredRewards");
+        offers.Clear();
+        foreach (TurnActors.RewardEffect other in Enum.GetValues(typeof(TurnActors.RewardEffect)))
+        {
+            if (other == effect) continue;
+            offers.Add(new TurnActors.RewardOption { effect = other });
+            if (offers.Count == 2) break;
+        }
+        offers.Insert(slot, new TurnActors.RewardOption { effect = effect });
+    }
+
+    static bool ChooseKnownReward(TurnActors actors, TurnActors.RewardEffect effect)
+    {
+        OfferRewardForTest(actors, effect);
+        return actors.ChooseReward(0, actors.RewardSelectionId);
+    }
+
+    static bool PoolContains(TurnActors actors, TurnActors.RewardEffect effect)
+    {
+        var pool = (IList)actors.GetType().GetMethod("BuildRewardPool", Private).Invoke(actors, null);
+        foreach (TurnActors.RewardOption reward in pool)
+            if (reward.effect == effect) return true;
+        return false;
+    }
+
+    static void CheckGrowthRewards(TurnActors actors)
+    {
+        actors.ResetArena();
+        Call(actors, "QueueLevelReward");
+        Check(actors.RewardOptionCount == 3 && actors.CanReroll, "Random screen offers three choices and one reroll");
+        for (int pass = 0; pass < 2; pass++)
+        {
+            for (int i = 0; i < actors.RewardOptionCount; i++)
+                for (int j = i + 1; j < actors.RewardOptionCount; j++)
+                    Check(actors.GetRewardOption(i).effect != actors.GetRewardOption(j).effect, "No duplicate offers");
+            if (pass == 0)
+            {
+                int id = actors.RewardSelectionId;
+                Check(actors.RerollRewards(id) && actors.PendingRewardCount == 1 && Time.timeScale == 0,
+                    "Reroll keeps the reward and pause");
+                Check(!actors.ChooseReward(0, id), "Old card is invalid after reroll");
+            }
+        }
+        Check(!actors.RerollRewards(actors.RewardSelectionId), "Second reroll is blocked");
+        Check(ChooseKnownReward(actors, TurnActors.RewardEffect.AttackUp) && actors.IsChoosingWeapon,
+            "Targeted reward opens weapon selection without granting yet");
+        int staleId = actors.RewardSelectionId;
+        Check(actors.BackToRewards(staleId) && actors.PendingRewardCount == 1 && !actors.CanReroll,
+            "Back preserves reward and does not refresh spent reroll");
+        Check(!actors.ChooseWeapon(actors.GetWeaponId(0), staleId), "Stale target click is rejected");
+        Check(ChooseKnownReward(actors, TurnActors.RewardEffect.AttackUp), "Attack reward can be reopened");
+        Check(actors.ChooseWeapon(actors.GetWeaponId(0), actors.RewardSelectionId), "Attack target commits reward");
+        var weapons = (IList)Field(actors, "swords");
+        object source = weapons[0];
+        Check((int)source.GetType().GetField("DamageBonus").GetValue(source) == 1, "Damage is stored per weapon");
+        Call(actors, "QueueLevelReward");
+        Check(actors.CanReroll, "Next screen restores one reroll");
+        Check(ChooseKnownReward(actors, TurnActors.RewardEffect.HomingUp) && !actors.IsChoosingWeapon &&
+            actors.HomingUpgradeLevel == 1, "Homing applies globally without target selection");
+        var root = (Transform)source.GetType().GetField("Root").GetValue(source);
+        root.localPosition = new Vector2(5, 0);
+        ((IList)Field(actors, "orbiting")).Remove(source);
+        Call(actors, "PlantSword", source);
+        source.GetType().GetField("AutoRecallRemaining").SetValue(source, 1.2f);
+        Call(actors, "QueueLevelReward");
+        Check(ChooseKnownReward(actors, TurnActors.RewardEffect.CopyWeapon) &&
+            actors.ChooseWeapon(actors.GetWeaponId(0), actors.RewardSelectionId), "Installed weapon can be copied");
+        object copy = weapons[weapons.Count - 1];
+        Check((int)copy.GetType().GetField("DamageBonus").GetValue(copy) == 1 &&
+            actors.HomingUpgradeLevel == 1 &&
+            copy.GetType().GetField("State").GetValue(copy).ToString() == "Orbiting" &&
+            (float)copy.GetType().GetField("AutoRecallRemaining").GetValue(copy) == 0 && actors.OwnedSwordCount == 4,
+            "Copy preserves upgrades but starts with clean orbiting state");
+        Check(source.GetType().GetField("State").GetValue(source).ToString() == "Planted" &&
+            (float)source.GetType().GetField("AutoRecallRemaining").GetValue(source) == 1.2f, "Copy leaves original unchanged");
+        for (int i = 0; i < 4; i++)
+        {
+            Call(actors, "QueueLevelReward");
+            Check(ChooseKnownReward(actors, TurnActors.RewardEffect.FasterRecall), "Recall upgrade can be selected");
+            Check(actors.AutomaticRecallDelay == 4 - i, "Recall delay follows 5/4/3/2/1");
+        }
+        Check(!PoolContains(actors, TurnActors.RewardEffect.FasterRecall), "Capped recall upgrade is excluded");
+        Check((float)source.GetType().GetField("AutoRecallRemaining").GetValue(source) == 0 &&
+            source.GetType().GetField("State").GetValue(source).ToString() == "Planted", "Elapsed install time is preserved until resume");
+        Call(actors, "AdvancePlanted", source, .01f);
+        Check(source.GetType().GetField("State").GetValue(source).ToString() == "Returning", "Overdue weapon returns on resume");
+        for (int i = 1; i < 3; i++)
+        {
+            Call(actors, "QueueLevelReward");
+            Check(ChooseKnownReward(actors, TurnActors.RewardEffect.HomingUp), "Global homing can be upgraded to stage three");
+        }
+        Check(actors.HomingUpgradeLevel == 3 && !PoolContains(actors, TurnActors.RewardEffect.HomingUp),
+            "Global homing is capped at three stages and excluded from pool");
+
+        foreach (string stateName in new[] { "Orbiting", "Flying", "Planted", "Returning", "Intercepting" })
+        {
+            actors.ResetArena();
+            weapons = (IList)Field(actors, "swords");
+            object victim = weapons[0];
+            var state = victim.GetType().GetField("State");
+            state.SetValue(victim, Enum.Parse(state.FieldType, stateName));
+            Call(actors, "SpawnBullet", new Vector2(5, 0));
+            object bullet = ((IList)Field(actors, "bullets"))[0];
+            bullet.GetType().GetField("Reserved").SetValue(bullet, true);
+            victim.GetType().GetField("InterceptTarget").SetValue(victim, bullet);
+            var victimRoot = (Transform)victim.GetType().GetField("Root").GetValue(victim);
+            Call(actors, "QueueLevelReward");
+            Check(ChooseKnownReward(actors, TurnActors.RewardEffect.DeleteWeapon) &&
+                actors.ChooseWeapon(actors.GetWeaponId(0), actors.RewardSelectionId), "Deletion works in " + stateName);
+            Check(weapons.Count == 2 && actors.OwnedSwordCount == 2 && !victimRoot.gameObject.activeSelf &&
+                !(bool)bullet.GetType().GetField("Reserved").GetValue(bullet), "Delete removes object and releases bullet reservation");
+        }
+        // Remove down to the minimum using actual target selection.
+        Call(actors, "QueueLevelReward");
+        Check(ChooseKnownReward(actors, TurnActors.RewardEffect.DeleteWeapon) &&
+            actors.ChooseWeapon(actors.GetWeaponId(0), actors.RewardSelectionId), "Can remove down to one weapon");
+        Check(actors.OwnedSwordCount == 1 && !PoolContains(actors, TurnActors.RewardEffect.DeleteWeapon),
+            "Last weapon cannot be deleted and delete reward is excluded");
+        Call(actors, "QueueLevelReward");
+        Check(!ChooseKnownReward(actors, TurnActors.RewardEffect.DeleteWeapon), "Last-weapon guard rejects forced stale delete offer");
+        actors.ResetArena();
+    }
+
     static object Field(object target, string name) => target.GetType().GetField(name, Private).GetValue(target);
     static void Set(object target, string name, object value) => target.GetType().GetField(name, Private).SetValue(target, value);
-    static void Call(object target, string name, params object[] arguments) =>
-        target.GetType().GetMethod(name, Private | BindingFlags.Static).Invoke(target, arguments);
+    static void Call(object target, string name, params object[] arguments)
+    {
+        var method = target.GetType().GetMethod(name, Private | BindingFlags.Static);
+        var parameters = method.GetParameters();
+        int supplied = arguments.Length;
+        Array.Resize(ref arguments, parameters.Length);
+        for (int i = supplied; i < parameters.Length; i++) arguments[i] = parameters[i].DefaultValue;
+        method.Invoke(target, arguments);
+    }
     static void Check(bool success, string message)
     {
         if (!success) throw new Exception("Survival smoke check failed: " + message);
