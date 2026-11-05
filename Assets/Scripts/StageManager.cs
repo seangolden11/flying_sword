@@ -1,27 +1,22 @@
-using System.Collections.Generic;
 using UnityEngine;
 
-[RequireComponent(typeof(GameStateManager), typeof(AimController), typeof(UIManager))]
+[RequireComponent(typeof(TurnActors), typeof(UIManager))]
 public sealed class StageManager : MonoBehaviour
 {
-    readonly List<BallController> balls = new();
-    public IReadOnlyList<BallController> Balls => balls;
-    public Camera View { get; private set; }
+    Camera view;
     public TurnActors Actors { get; private set; }
     [SerializeField] Material swordTrailMaterial;
     Sprite square;
 
     void Awake()
     {
-        View = Camera.main;
-        View.transform.SetPositionAndRotation(new Vector3(0, 0, -10), Quaternion.identity);
-        View.orthographic = true;
-        View.backgroundColor = new Color32(14, 21, 34, 255);
+        view = Camera.main;
+        view.transform.SetPositionAndRotation(new Vector3(0, 0, -10), Quaternion.identity);
+        view.orthographic = true;
+        view.backgroundColor = new Color32(14, 21, 34, 255);
         FitCamera();
         square = MakeSquare();
 
-        GetComponent<AimController>().enabled = false;
-        GetComponent<GameStateManager>().enabled = false;
         Vector2 size = TurnActors.GridSize;
         const float wallThickness = .24f;
         float wallX = (size.x + wallThickness) * .5f;
@@ -34,13 +29,13 @@ public sealed class StageManager : MonoBehaviour
         Wall("West", new Vector2(-wallX, 0), verticalWall);
         Wall("East", new Vector2(wallX, 0), verticalWall);
         Actors = GetComponent<TurnActors>();
-        Actors.Initialize(square, View, swordTrailMaterial);
+        Actors.Initialize(square, view, swordTrailMaterial);
         Actors.ResetArena();
     }
 
     void Update() => FitCamera();
 
-    void FitCamera() => View.orthographicSize = (TurnActors.GridSize.y * .5f + .36f) / Mathf.Min(1, View.aspect);
+    void FitCamera() => view.orthographicSize = (TurnActors.GridSize.y * .5f + .36f) / Mathf.Min(1, view.aspect);
 
     void Wall(string label, Vector2 center, Vector2 size)
     {

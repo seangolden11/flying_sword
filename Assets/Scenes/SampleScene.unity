@@ -360,9 +360,6 @@ GameObject:
   m_Component:
   - component: {fileID: 9101}
   - component: {fileID: 9102}
-  - component: {fileID: 9103}
-  - component: {fileID: 9104}
-  - component: {fileID: 9105}
   - component: {fileID: 9106}
   - component: {fileID: 9107}
   m_Layer: 0
@@ -397,42 +394,6 @@ MonoBehaviour:
   m_Name:
   m_EditorClassIdentifier:
   swordTrailMaterial: {fileID: 2100000, guid: 9dfc825aed78fcd4ba02077103263b40, type: 2}
---- !u!114 &9103
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 9100}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 02d6ced5c04b4123b93324857d5a535e, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
---- !u!114 &9104
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 9100}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 56d0f57f8bbc44eb950e5fdc0cfd94c0, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
---- !u!114 &9105
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 9100}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 1ccb6cb5da2140b19a09e43b311d65cc, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
 --- !u!114 &9106
 MonoBehaviour:
   m_ObjectHideFlags: 0
