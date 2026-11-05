@@ -5,7 +5,11 @@ using UnityEngine.InputSystem;
 public sealed class TurnActors : MonoBehaviour
 {
     const float CellSize = .8f;
-    const int Cells = 17;
+    const int Columns = 55;
+    const int Rows = 17;
+    const float RideSpeed = 6f;
+    const float SwordGravity = 18f;
+    static readonly Vector2 SpawnPosition = new Vector2(-12f, 0);
     public const int SwordCount = 20;
     const float OrbitRadius = 2.1f;
     const float OrbitSpeed = 1.65f;
@@ -21,15 +25,17 @@ public sealed class TurnActors : MonoBehaviour
     const float EnemyBasicInterval = 1.1f;
     const float BulletSpeed = 3.4f;
     const float EnemyHitRadius = .46f;
-    const float ReboundSpeed = 8.5f;
-    const float ReboundMinDistance = 2.8f;
-    const float ReboundMaxDistance = 4.8f;
+    const int EnemyMaxHealth = 10;
+    const float EnemyRespawnDelay = 1f;
+    const float ReboundSpeed = 6f;
+    const float ReboundSideSpeed = 1.5f;
+    const float EnemyContactMargin = .02f;
     const float HitEffectTime = .22f;
     const float InterceptRange = 1.8f;
     const float InterceptContact = .22f;
     const float InterceptRecoil = .13f;
     const float InterceptRecovery = .22f;
-    static readonly Vector2 EnemyPosition = new Vector2(0, 5.4f);
+    static readonly Vector2 EnemyPosition = new Vector2(8f, 2.5f);
     const float ReturnSpeed = 12f;
     const float RecallRadius = 2f;
     const float RecallDisplayTime = .45f;
@@ -40,13 +46,13 @@ public sealed class TurnActors : MonoBehaviour
     static readonly Color PlantedBlade = new Color32(135, 154, 171, 255);
     static readonly Color FusionBlade = new Color32(255, 209, 105, 255);
     static readonly Color ActiveBlade = new Color32(113, 248, 225, 255);
-    public static Vector2 GridSize => Vector2.one * (Cells * CellSize);
+    public static Vector2 GridSize => new Vector2(Columns, Rows) * CellSize;
     public int ActiveSwordCount => orbiting.Count;
     public float SecondsUntilEnemyBurst => Mathf.Max(0, enemyBurstTimer);
     public float EnemyBurstCharge => 1 - SecondsUntilEnemyBurst / EnemyBurstInterval;
     public bool IsEnemyFiringBurst => enemyShotsRemaining > 0;
 
-    enum SwordState { Orbiting, Flying, Rebounding, Planted, Intercepting, Returning }
+    enum SwordState { Orbiting, Flying, Falling, Planted, Intercepting, Returning }
 
     sealed class Sword
     {
@@ -63,6 +69,8 @@ public sealed class TurnActors : MonoBehaviour
         public int InterceptsRemaining;
         public Bullet InterceptTarget;
         public float Recovery;
+        public Vector2 FallVelocity;
+        public bool TouchingEnemy;
     }
 
     sealed class Bullet
@@ -84,6 +92,9 @@ public sealed class TurnActors : MonoBehaviour
     readonly List<HitBurst> activeHits = new();
     readonly Stack<HitBurst> availableHits = new();
     SpriteRenderer enemyCore;
+    SpriteRenderer enemyBody;
+    public int EnemyHealth { get; private set; }
+    public float EnemyRespawnTime { get; private set; }
     float hitEffectTimer;
     float enemyBurstTimer;
     float enemyShotTimer;
@@ -109,6 +120,9 @@ public sealed class TurnActors : MonoBehaviour
     float shakeTimer;
     Vector3 cameraRestPosition;
     Camera view;
+    Transform rider;
+    TrailRenderer mountTrail;
+    Vector2 RiderPosition => rider.localPosition;
     float orbitAngle;
     float recallTimer;
     float launchCooldown;
@@ -121,10 +135,20 @@ public sealed class TurnActors : MonoBehaviour
         cameraRestPosition = view.transform.position;
         bladeSprite = MakeBladeSprite();
         DrawGrid();
-        var hero = StageManager.Draw(transform, "Hero", square, new Color32(246, 246, 251, 255),
-            Vector2.zero, Vector2.one * .46f, 4);
-        hero.transform.localRotation = Quaternion.Euler(0, 0, 45);
-        StageManager.Draw(transform, "Invulnerable enemy", square, new Color32(225, 77, 109, 255),
+        rider = new GameObject("Sword rider").transform;
+        rider.SetParent(transform, false);
+        Sword mount = CreateSword("Mount sword");
+        mount.Root.SetParent(rider, false);
+        mount.Root.localPosition = new Vector2(.75f, -.17f);
+        mount.Root.localScale = new Vector3(1.25f, 2.3f, 1f);
+        PointSword(mount, Vector2.right);
+        mountTrail = mount.Trail;
+        mountTrail.transform.localPosition = new Vector2(0, .6f);
+        mountTrail.time = .45f;
+        mountTrail.startWidth = .16f;
+        StageManager.Draw(rider, "Hero", square, new Color32(246, 246, 251, 255),
+            new Vector2(0, .12f), new Vector2(.27f, .46f), 5);
+        enemyBody = StageManager.Draw(transform, "Enemy", square, new Color32(225, 77, 109, 255),
             EnemyPosition, Vector2.one * .8f, 4);
         enemyCore = StageManager.Draw(transform, "Enemy core", square, new Color32(255, 184, 174, 255),
             EnemyPosition, Vector2.one * .29f, 5);
@@ -154,10 +178,7 @@ public sealed class TurnActors : MonoBehaviour
         hitEffectTimer = 0;
         UpdateHitBursts(HitEffectTime);
         UpdateHitEffects(0);
-        enemyBurstTimer = EnemyBurstInterval;
-        enemyBasicTimer = EnemyBasicInterval;
-        enemyShotTimer = 0;
-        enemyShotsRemaining = 0;
+        SpawnEnemy();
         swords.Clear();
         orbiting.Clear();
         orbitAngle = 0;
@@ -176,7 +197,10 @@ public sealed class TurnActors : MonoBehaviour
         merging = false;
 
         shakeTimer = 0;
-        view.transform.position = cameraRestPosition;
+        mountTrail.emitting = false;
+        rider.localPosition = SpawnPosition;
+        mountTrail.Clear();
+        UpdateCamera();
         if (mergeSword != null)
         {
             mergeSword.Root.gameObject.SetActive(false);
@@ -191,7 +215,7 @@ public sealed class TurnActors : MonoBehaviour
             swords.Add(sword);
             orbiting.Add(sword);
             Vector2 outward = OrbitDirection(2 * Mathf.PI * i / SwordCount);
-            sword.Root.localPosition = outward * OrbitRadius;
+            sword.Root.localPosition = RiderPosition + outward * OrbitRadius;
             SetFusionSize(sword, orbitVisual: true);
             PointSword(sword, outward);
         }
@@ -253,6 +277,12 @@ public sealed class TurnActors : MonoBehaviour
             followVelocity = Vector2.zero;
         }
 
+        foreach (Sword sword in orbiting)
+            sword.PreviousPosition = sword.Root.localPosition;
+
+        MoveRider(keyboard, dt);
+        UpdateCamera();
+
         bool mergeHeld = keyboard != null && (keyboard.digit1Key.isPressed || keyboard.digit1Key.wasPressedThisFrame);
         if (mergeHeld && !merging)
             BeginMerge();
@@ -260,6 +290,7 @@ public sealed class TurnActors : MonoBehaviour
             FinishMerge();
         merging = mergeHeld && mergeSword != null;
         guarding = !merging && keyboard != null && keyboard.digit4Key.isPressed && orbiting.Count > 0;
+        guardArea.transform.localPosition = RiderPosition;
         guardArea.enabled = guarding;
         launchCooldown = Mathf.Max(0, launchCooldown - dt);
         var mouse = Mouse.current;
@@ -285,17 +316,14 @@ public sealed class TurnActors : MonoBehaviour
             }
         }
 
-        foreach (Sword sword in orbiting)
-            sword.PreviousPosition = sword.Root.localPosition;
-
         UpdateHitEffects(dt);
         UpdateBullets(dt);
         foreach (Sword sword in swords)
         {
             if (sword.State == SwordState.Flying)
                 AdvanceFlight(sword, dt);
-            else if (sword.State == SwordState.Rebounding)
-                AdvanceRebound(sword, dt);
+            else if (sword.State == SwordState.Falling)
+                AdvanceFall(sword, dt);
             else if (sword.State == SwordState.Intercepting)
                 AdvanceAutoIntercept(sword, dt);
             else if (sword.State == SwordState.Returning)
@@ -336,11 +364,12 @@ public sealed class TurnActors : MonoBehaviour
             float offset = merging ? sword.MergeOrbitOffset : 2 * Mathf.PI * i / orbiting.Count;
             float targetAngle = (orbitAngle + offset) * Mathf.Rad2Deg;
             Vector2 previous = sword.Root.localPosition;
-            float previousAngle = Mathf.Atan2(previous.y, previous.x) * Mathf.Rad2Deg;
+            Vector2 offsetFromRider = previous - RiderPosition;
+            float previousAngle = Mathf.Atan2(offsetFromRider.y, offsetFromRider.x) * Mathf.Rad2Deg;
             float angle = Mathf.MoveTowardsAngle(previousAngle, targetAngle, 360f * dt);
             Vector2 outward = OrbitDirection(angle * Mathf.Deg2Rad);
-            float radius = Mathf.MoveTowards(previous.magnitude, guarding ? GuardRadius : OrbitRadius, ReturnSpeed * dt);
-            Vector2 next = outward * radius;
+            float radius = Mathf.MoveTowards(offsetFromRider.magnitude, guarding ? GuardRadius : OrbitRadius, ReturnSpeed * dt);
+            Vector2 next = RiderPosition + outward * radius;
             sword.Root.localPosition = next;
             SetFusionSize(sword, orbitVisual: true);
             PointSword(sword, outward);
@@ -383,7 +412,7 @@ public sealed class TurnActors : MonoBehaviour
 
                 InterceptBullet(j);
                 orbiting.RemoveAt(i);
-                PlantSword(sword);
+                BeginFall(sword);
                 break;
             }
         }
@@ -401,7 +430,7 @@ public sealed class TurnActors : MonoBehaviour
     {
         for (int i = bullets.Count - 1; i >= 0; i--)
         {
-            if (((Vector2)bullets[i].Root.localPosition).sqrMagnitude <= .25f * .25f)
+            if (((Vector2)bullets[i].Root.localPosition - RiderPosition).sqrMagnitude <= .25f * .25f)
                 RemoveBullet(i);
         }
     }
@@ -538,14 +567,14 @@ public sealed class TurnActors : MonoBehaviour
         if (mergeSword == null && orbiting.Count > 0)
         {
             mergeSword = CreateSword("Fusion sword");
-            mergeSword.Root.localPosition = Vector2.up * OrbitRadius;
+            mergeSword.Root.localPosition = RiderPosition + Vector2.up * OrbitRadius;
             mergeSword.Blade.color = FusionBlade;
             PointSword(mergeSword, Vector2.up);
         }
 
         foreach (Sword sword in orbiting)
         {
-            Vector2 position = sword.Root.localPosition;
+            Vector2 position = (Vector2)sword.Root.localPosition - RiderPosition;
             sword.MergeOrbitOffset = Mathf.Atan2(position.y, position.x) - orbitAngle;
         }
     }
@@ -587,6 +616,37 @@ public sealed class TurnActors : MonoBehaviour
         return (from + travel * progress - center).sqrMagnitude <= radius * radius;
     }
 
+    void MoveRider(Keyboard keyboard, float dt)
+    {
+        if (keyboard == null)
+            return;
+
+        var input = new Vector2(
+            (keyboard.dKey.isPressed ? 1 : 0) - (keyboard.aKey.isPressed ? 1 : 0),
+            (keyboard.wKey.isPressed ? 1 : 0) - (keyboard.sKey.isPressed ? 1 : 0));
+        Vector2 previous = RiderPosition;
+        Vector2 next = ClampTarget(previous + Vector2.ClampMagnitude(input, 1) * (RideSpeed * dt),
+            GuardRadius + .5f);
+        Vector2 travel = next - previous;
+        rider.localPosition = next;
+        mountTrail.emitting = travel.sqrMagnitude > 0;
+        if (!followWasActive)
+        {
+            foreach (Sword sword in orbiting)
+                sword.Root.localPosition += (Vector3)travel;
+        }
+        if (mergeSword != null)
+            mergeSword.Root.localPosition += (Vector3)travel;
+    }
+
+    void UpdateCamera()
+    {
+        float scrollLimit = Mathf.Max(0, GridSize.x * .5f - view.orthographicSize * view.aspect);
+        cameraRestPosition.x = Mathf.Clamp(rider.position.x, transform.position.x - scrollLimit,
+            transform.position.x + scrollLimit);
+        view.transform.position = cameraRestPosition;
+    }
+
     void LateUpdate()
     {
         if (view == null || shakeTimer <= 0)
@@ -622,10 +682,10 @@ public sealed class TurnActors : MonoBehaviour
         BeginFlight(sword, target);
     }
 
-    static Vector2 ClampTarget(Vector2 point)
+    static Vector2 ClampTarget(Vector2 point, float margin = .65f)
     {
-        float edge = GridSize.x * .5f - .65f;
-        return new Vector2(Mathf.Clamp(point.x, -edge, edge), Mathf.Clamp(point.y, -edge, edge));
+        Vector2 edge = GridSize * .5f - Vector2.one * margin;
+        return new Vector2(Mathf.Clamp(point.x, -edge.x, edge.x), Mathf.Clamp(point.y, -edge.y, edge.y));
     }
 
     bool IsInRecallRange(Sword sword, Vector2 center) =>
@@ -669,7 +729,37 @@ public sealed class TurnActors : MonoBehaviour
         }
     }
 
+    void SpawnEnemy()
+    {
+        EnemyHealth = EnemyMaxHealth;
+        enemyBody.enabled = true;
+        enemyCore.enabled = true;
+        enemyBurstTimer = EnemyBurstInterval;
+        enemyBasicTimer = EnemyBasicInterval;
+        enemyShotTimer = 0;
+        enemyShotsRemaining = 0;
+        EnemyRespawnTime = 0;
+    }
+
     void UpdateBullets(float dt)
+    {
+        if (EnemyHealth > 0)
+            UpdateEnemyFire(dt);
+        else
+        {
+            EnemyRespawnTime = Mathf.Max(0, EnemyRespawnTime - dt);
+            if (EnemyRespawnTime == 0)
+                SpawnEnemy();
+        }
+
+        foreach (Bullet bullet in bullets)
+        {
+            bullet.Previous = bullet.Root.localPosition;
+            bullet.Root.localPosition = Vector2.MoveTowards(bullet.Previous, RiderPosition, BulletSpeed * dt);
+        }
+    }
+
+    void UpdateEnemyFire(float dt)
     {
         enemyBurstTimer -= dt;
         enemyShotTimer -= dt;
@@ -698,12 +788,6 @@ public sealed class TurnActors : MonoBehaviour
                 enemyBasicTimer += EnemyBasicInterval;
                 SpawnBullet();
             }
-        }
-
-        foreach (Bullet bullet in bullets)
-        {
-            bullet.Previous = bullet.Root.localPosition;
-            bullet.Root.localPosition = Vector2.MoveTowards(bullet.Previous, Vector2.zero, BulletSpeed * dt);
         }
     }
 
@@ -758,7 +842,7 @@ public sealed class TurnActors : MonoBehaviour
         if (index < 0)
         {
             sword.InterceptTarget = null;
-            PlantSword(sword);
+            BeginFall(sword);
             return;
         }
 
@@ -779,6 +863,7 @@ public sealed class TurnActors : MonoBehaviour
     static void BeginFlight(Sword sword, Vector2 target)
     {
         sword.State = SwordState.Flying;
+        sword.TouchingEnemy = false;
         sword.Trail.emitting = false;
         sword.Target = target;
         sword.InterceptsRemaining = 1 + sword.FusionSize;
@@ -828,7 +913,7 @@ public sealed class TurnActors : MonoBehaviour
                 if (sword.InterceptsRemaining == 0)
                 {
                     sword.Root.localPosition = impact;
-                    PlantSword(sword);
+                    BeginFall(sword);
                 }
                 else
                 {
@@ -843,11 +928,23 @@ public sealed class TurnActors : MonoBehaviour
         if (next != sword.Target)
             return;
 
-        PlantSword(sword);
+        BeginFall(sword);
     }
 
     bool TryReboundFromEnemy(Sword sword, Vector2 from, Vector2 to)
     {
+        if (EnemyHealth == 0)
+            return false;
+
+        if (sword.TouchingEnemy)
+        {
+            float releaseRadius = EnemyHitRadius + EnemyContactMargin;
+            if ((from - EnemyPosition).sqrMagnitude <= releaseRadius * releaseRadius)
+                return false;
+
+            sword.TouchingEnemy = false;
+        }
+
         Vector2 travel = to - from;
         if (travel.sqrMagnitude <= .000001f)
             return false;
@@ -868,38 +965,27 @@ public sealed class TurnActors : MonoBehaviour
         Vector2 rebound = normal.sqrMagnitude > 0 && Vector2.Dot(direction, normal) < 0
             ? Vector2.Reflect(direction, normal) : -direction;
         sword.Root.localPosition = impact;
-        sword.Target = ChooseReboundTarget(impact, rebound);
-        sword.State = SwordState.Rebounding;
-        PointSword(sword, sword.Target - impact);
+        BeginFall(sword);
+        sword.TouchingEnemy = true;
+        sword.FallVelocity = rebound * ReboundSpeed;
+        if (rebound.y > .8f)
+        {
+            float side = rebound.x < 0 || (rebound.x == 0 && direction.x < 0) ? -1f : 1f;
+            sword.FallVelocity.x += side * ReboundSideSpeed;
+        }
+        PointSword(sword, sword.FallVelocity);
+        EnemyHealth--;
+        if (EnemyHealth == 0)
+        {
+            EnemyRespawnTime = EnemyRespawnDelay;
+            enemyBody.enabled = false;
+            enemyCore.enabled = false;
+            enemyShotsRemaining = 0;
+        }
         SpawnHitBurst(impact, new Color(1, .77f, .34f));
         hitEffectTimer = HitEffectTime;
         UpdateHitEffects(0);
         return true;
-    }
-
-    static Vector2 ChooseReboundTarget(Vector2 impact, Vector2 rebound)
-    {
-        float distance = Random.Range(ReboundMinDistance, ReboundMaxDistance);
-        for (int attempt = 0; attempt < 8; attempt++)
-        {
-            Vector2 direction = Quaternion.Euler(0, 0, Random.Range(-75f, 75f)) * rebound;
-            Vector2 target = ClampTarget(impact + direction * distance);
-            if ((target - impact).sqrMagnitude >= ReboundMinDistance * ReboundMinDistance)
-                return target;
-        }
-
-        // Aim back into the arena if the reflected directions are clipped by a wall.
-        Vector2 inward = Quaternion.Euler(0, 0, Random.Range(-35f, 35f)) * (-impact).normalized;
-        return ClampTarget(impact + inward * distance);
-    }
-
-    static void AdvanceRebound(Sword sword, float dt)
-    {
-        Vector2 position = sword.Root.localPosition;
-        Vector2 next = Vector2.MoveTowards(position, sword.Target, ReboundSpeed * dt);
-        sword.Root.localPosition = next;
-        if (next == sword.Target)
-            PlantSword(sword);
     }
 
     void InterceptBullet(int index)
@@ -971,12 +1057,50 @@ public sealed class TurnActors : MonoBehaviour
         }
     }
 
-    static void PlantSword(Sword sword)
+    static void BeginFall(Sword sword)
     {
-        sword.State = SwordState.Planted;
+        sword.State = SwordState.Falling;
+        sword.FallVelocity = Vector2.zero;
         sword.Trail.emitting = false;
         SetFusionSize(sword, orbitVisual: false);
         sword.Root.localRotation = Quaternion.identity;
+        sword.GroundMark.enabled = false;
+    }
+
+    void AdvanceFall(Sword sword, float dt)
+    {
+        float floor = -GridSize.y * .5f;
+        Vector2 position = sword.Root.localPosition;
+        Vector2 gravity = Vector2.down * SwordGravity;
+        Vector2 next = position + (sword.FallVelocity + .5f * gravity * dt) * dt;
+        sword.FallVelocity += gravity * dt;
+        float sideLimit = GridSize.x * .5f - .65f;
+        if (Mathf.Abs(next.x) > sideLimit)
+        {
+            next.x = Mathf.Clamp(next.x, -sideLimit, sideLimit);
+            sword.FallVelocity.x = 0;
+        }
+        next.y = Mathf.Max(floor, next.y);
+        if (TryReboundFromEnemy(sword, position, next))
+            return;
+
+        for (int i = bullets.Count - 1; i >= 0; i--)
+        {
+            Bullet bullet = bullets[i];
+            if (DistanceToSegmentSquared(Vector2.zero, (Vector2)position - bullet.Previous,
+                    next - (Vector2)bullet.Root.localPosition) <= InterceptContact * InterceptContact)
+                InterceptBullet(i);
+        }
+
+        sword.Root.localPosition = next;
+        if (next.y > floor)
+        {
+            PointSword(sword, sword.FallVelocity);
+            return;
+        }
+
+        sword.Root.localRotation = Quaternion.identity;
+        sword.State = SwordState.Planted;
         sword.Blade.color = PlantedBlade;
         sword.GroundMark.enabled = true;
     }
@@ -987,7 +1111,7 @@ public sealed class TurnActors : MonoBehaviour
     void AdvanceReturn(Sword sword, float dt)
     {
         Vector2 position = sword.Root.localPosition;
-        Vector2 target = ReturnTarget(position);
+        Vector2 target = RiderPosition + ReturnTarget(position - RiderPosition);
         PointSword(sword, target - position);
         Vector2 next = Vector2.MoveTowards(position, target, ReturnSpeed * dt);
         sword.Root.localPosition = next;
@@ -997,7 +1121,7 @@ public sealed class TurnActors : MonoBehaviour
         sword.State = SwordState.Orbiting;
         sword.PreviousPosition = next;
         SetFusionSize(sword, orbitVisual: true);
-        sword.MergeOrbitOffset = Mathf.Atan2(next.y, next.x) - orbitAngle;
+        sword.MergeOrbitOffset = Mathf.Atan2(next.y - RiderPosition.y, next.x - RiderPosition.x) - orbitAngle;
         orbiting.Add(sword);
     }
 
@@ -1061,11 +1185,15 @@ public sealed class TurnActors : MonoBehaviour
     {
         Vector2 size = GridSize;
         var line = new Color32(52, 73, 92, 255);
-        for (int i = 1; i < Cells; i++)
+        for (int i = 1; i < Columns; i++)
         {
             float offset = i * CellSize - size.x * .5f;
             StageManager.Draw(transform, "Grid column", square, line,
                 new Vector2(offset, 0), new Vector2(.018f, size.y), 1);
+        }
+        for (int i = 1; i < Rows; i++)
+        {
+            float offset = i * CellSize - size.y * .5f;
             StageManager.Draw(transform, "Grid row", square, line,
                 new Vector2(0, offset), new Vector2(size.x, .018f), 1);
         }

@@ -28,7 +28,7 @@ public sealed class UIManager : MonoBehaviour
         controlLabel ??= Label(13, Text);
         controlLabel.alignment = TextAnchor.MiddleLeft;
         float width = Mathf.Min(262, Screen.width - 24);
-        Fill(new Rect(12, 12, width, 177), Background);
+        Fill(new Rect(12, 12, width, 199), Background);
         DrawControl(0, "1", "꾹 누르기 · 검 합체");
         DrawControl(1, "2", $"자동 요격 · {(actors.IsAutoInterceptOn ? "켜짐" : "꺼짐")}");
         DrawControl(2, "3", "커서 주변 교차 참격");
@@ -37,6 +37,7 @@ public sealed class UIManager : MonoBehaviour
         GUI.Label(new Rect(22, 132, width - 20, 22), "좌클릭 발사 · 우클릭 회수 (꾹 가능)", controlLabel);
         GUI.Label(new Rect(22, 155, width - 20, 22),
             $"R 초기화     사용 가능 검 {actors.ActiveSwordCount}/{TurnActors.SwordCount}", controlLabel);
+        GUI.Label(new Rect(22, 177, width - 20, 22), "WASD · 검 타고 이동", controlLabel);
     }
 
     void DrawControl(int row, string key, string action)
@@ -53,6 +54,12 @@ public sealed class UIManager : MonoBehaviour
         float width = Mathf.Min(280, Screen.width - 24);
         float x = (Screen.width - width) * .5f;
         float y = Screen.height - 28;
+        if (actors.EnemyHealth == 0)
+        {
+            GUI.Label(new Rect(x, y - 24, width, 22), $"적 재등장까지 {actors.EnemyRespawnTime:0.0}초", burstLabel);
+            return;
+        }
+
         bool firing = actors.IsEnemyFiringBurst;
         float charge = firing ? 1 : actors.EnemyBurstCharge;
         var color = firing || charge >= .8f
@@ -61,7 +68,8 @@ public sealed class UIManager : MonoBehaviour
         Fill(new Rect(x, y, width, 12), Background);
         Fill(new Rect(x + 2, y + 2, (width - 4) * charge, 8), color);
         GUI.Label(new Rect(x, y - 24, width, 22),
-            firing ? "적 탄막 발사 중" : $"적 탄막까지 {actors.SecondsUntilEnemyBurst:0.0}초", burstLabel);
+            firing ? $"적 HP {actors.EnemyHealth} · 탄막 발사 중" :
+                $"적 HP {actors.EnemyHealth} · 탄막까지 {actors.SecondsUntilEnemyBurst:0.0}초", burstLabel);
     }
 
     static void Fill(Rect rect, Color color)
