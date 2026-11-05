@@ -35,7 +35,7 @@ public sealed class StageManager : MonoBehaviour
 
     void Update() => FitCamera();
 
-    void FitCamera() => view.orthographicSize = (TurnActors.GridSize.y * .5f + .36f) / Mathf.Min(1, view.aspect);
+    void FitCamera() => view.orthographicSize = 8f / Mathf.Min(1, view.aspect);
 
     void Wall(string label, Vector2 center, Vector2 size)
     {

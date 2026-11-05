@@ -418,5 +418,4 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a2d491f39be9489c91091383fb98edc4, type: 3}
   m_Name:
   m_EditorClassIdentifier:
-  enemyHealthPerStage: 3
-  enemySpawnsPerStage: 5
+  initialSwordCount: 3

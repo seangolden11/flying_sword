@@ -2,11 +2,17 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
-public sealed class TurnActors : MonoBehaviour
+public sealed partial class TurnActors : MonoBehaviour
 {
     const float CellSize = .8f;
-    const int Cells = 17;
-    public const int SwordCount = 20;
+    const int Cells = 125;
+    [SerializeField, Min(1)] int initialSwordCount = 3;
+    public int InitialSwordCount => Mathf.Max(1, initialSwordCount);
+    [SerializeField, Min(0)] float launchOvershoot = .8f;
+    [Header("Weak enemy homing")]
+    [SerializeField, Min(0)] float enemyHomingRange = 2f;
+    [SerializeField, Range(0, 45)] float enemyHomingHalfAngle = 20f;
+    [SerializeField, Range(0, 180)] float enemyHomingTurnSpeed = 60f;
     const float OrbitRadius = 2.1f;
     const float OrbitSpeed = 1.65f;
     const float GuardOrbitSpeed = 3.3f;
@@ -17,10 +23,9 @@ public sealed class TurnActors : MonoBehaviour
     const float FollowSmoothTime = .42f;
     const float LaunchSpeed = 16f;
     const float LaunchInterval = .12f;
-    const float EnemyBurstInterval = 10f;
-    const float EnemyBasicInterval = 1.1f;
-    const float BulletSpeed = 3.4f;
     const float EnemyHitRadius = .46f;
+    const float BladeLength = .46f;
+    const float BladeHalfWidth = .075f;
     const float ReboundSpeed = 8.5f;
     const float ReboundMinDistance = 2.8f;
     const float ReboundMaxDistance = 4.8f;
@@ -29,8 +34,8 @@ public sealed class TurnActors : MonoBehaviour
     const float InterceptContact = .22f;
     const float InterceptRecoil = .13f;
     const float InterceptRecovery = .22f;
-    static readonly Vector2 EnemyPosition = new Vector2(0, 5.4f);
     const float ReturnSpeed = 12f;
+    const float AutoRecallDelay = 5f;
     const float RecallRadius = 2f;
     const float RecallDisplayTime = .45f;
     const float GuardRadius = 2.85f;
@@ -42,9 +47,6 @@ public sealed class TurnActors : MonoBehaviour
     static readonly Color ActiveBlade = new Color32(113, 248, 225, 255);
     public static Vector2 GridSize => Vector2.one * (Cells * CellSize);
     public int ActiveSwordCount => orbiting.Count;
-    public float SecondsUntilEnemyBurst => Mathf.Max(0, enemyBurstTimer);
-    public float EnemyBurstCharge => 1 - SecondsUntilEnemyBurst / EnemyBurstInterval;
-    public bool IsEnemyFiringBurst => enemyShotsRemaining > 0;
 
     enum SwordState { Orbiting, Flying, Rebounding, Planted, Intercepting, Returning }
 
@@ -63,6 +65,11 @@ public sealed class TurnActors : MonoBehaviour
         public int InterceptsRemaining;
         public Bullet InterceptTarget;
         public float Recovery;
+        public Vector2 FlightDirection;
+        public Vector2 LaunchDirection;
+        public float FlightDistanceRemaining;
+        public readonly HashSet<Enemy> ReturnHits = new();
+        public float AutoRecallRemaining;
     }
 
     sealed class Bullet
@@ -83,12 +90,6 @@ public sealed class TurnActors : MonoBehaviour
 
     readonly List<HitBurst> activeHits = new();
     readonly Stack<HitBurst> availableHits = new();
-    SpriteRenderer enemyCore;
-    float hitEffectTimer;
-    float enemyBurstTimer;
-    float enemyShotTimer;
-    float enemyBasicTimer;
-    int enemyShotsRemaining;
     readonly List<Sword> swords = new();
     readonly List<Sword> orbiting = new();
     Sprite square;
@@ -124,11 +125,7 @@ public sealed class TurnActors : MonoBehaviour
         var hero = StageManager.Draw(transform, "Hero", square, new Color32(246, 246, 251, 255),
             Vector2.zero, Vector2.one * .46f, 4);
         hero.transform.localRotation = Quaternion.Euler(0, 0, 45);
-        StageManager.Draw(transform, "Invulnerable enemy", square, new Color32(225, 77, 109, 255),
-            EnemyPosition, Vector2.one * .8f, 4);
-        enemyCore = StageManager.Draw(transform, "Enemy core", square, new Color32(255, 184, 174, 255),
-            EnemyPosition, Vector2.one * .29f, 5);
-        enemyCore.transform.localRotation = Quaternion.Euler(0, 0, 45);
+        heroRenderer = hero;
         recallArea = StageManager.Draw(transform, "Recall range", MakeRecallSprite(),
             new Color32(96, 237, 255, 230), Vector2.zero, Vector2.one * (2 * RecallRadius), 2);
         recallArea.enabled = false;
@@ -139,6 +136,7 @@ public sealed class TurnActors : MonoBehaviour
 
     public void ResetArena()
     {
+        ResetSurvival();
         foreach (Sword sword in swords)
         {
             sword.Root.gameObject.SetActive(false);
@@ -151,13 +149,8 @@ public sealed class TurnActors : MonoBehaviour
             Destroy(bullet.Root.gameObject);
         }
         bullets.Clear();
-        hitEffectTimer = 0;
         UpdateHitBursts(HitEffectTime);
         UpdateHitEffects(0);
-        enemyBurstTimer = EnemyBurstInterval;
-        enemyBasicTimer = EnemyBasicInterval;
-        enemyShotTimer = 0;
-        enemyShotsRemaining = 0;
         swords.Clear();
         orbiting.Clear();
         orbitAngle = 0;
@@ -185,12 +178,12 @@ public sealed class TurnActors : MonoBehaviour
         }
 
 
-        for (int i = 0; i < SwordCount; i++)
+        for (int i = 0; i < InitialSwordCount; i++)
         {
             Sword sword = CreateSword($"Sword {i + 1}");
             swords.Add(sword);
             orbiting.Add(sword);
-            Vector2 outward = OrbitDirection(2 * Mathf.PI * i / SwordCount);
+            Vector2 outward = OrbitDirection(2 * Mathf.PI * i / InitialSwordCount);
             sword.Root.localPosition = outward * OrbitRadius;
             SetFusionSize(sword, orbitVisual: true);
             PointSword(sword, outward);
@@ -234,43 +227,45 @@ public sealed class TurnActors : MonoBehaviour
             return;
 
         var keyboard = Keyboard.current;
-        if (keyboard?.rKey.wasPressedThisFrame == true)
-        {
-            ResetArena();
+        if (IsGameOver || IsChoosingReward)
             return;
-        }
 
         float dt = Time.deltaTime;
+        UpdateSurvival(dt);
+        if (IsGameOver)
+            return;
         recallTimer -= dt;
         recallArea.enabled = recallTimer > 0;
-        if (keyboard?.digit2Key.wasPressedThisFrame == true)
+        if (IsSkillUnlocked(Skill.AutoIntercept) && keyboard?.digit2Key.wasPressedThisFrame == true)
             IsAutoInterceptOn = !IsAutoInterceptOn;
 
-        if (keyboard?.digit5Key.wasPressedThisFrame == true)
+        if (IsSkillUnlocked(Skill.CursorFollow) && keyboard?.digit5Key.wasPressedThisFrame == true)
         {
             IsFollowingCursor = !IsFollowingCursor;
             followHead = Vector2.zero;
             followVelocity = Vector2.zero;
         }
 
-        bool mergeHeld = keyboard != null && (keyboard.digit1Key.isPressed || keyboard.digit1Key.wasPressedThisFrame);
+        bool mergeHeld = IsSkillUnlocked(Skill.Fusion) && keyboard != null && (keyboard.digit1Key.isPressed || keyboard.digit1Key.wasPressedThisFrame);
         if (mergeHeld && !merging)
             BeginMerge();
         if (!mergeHeld && merging)
             FinishMerge();
         merging = mergeHeld && mergeSword != null;
-        guarding = !merging && keyboard != null && keyboard.digit4Key.isPressed && orbiting.Count > 0;
+        guarding = IsSkillUnlocked(Skill.Guard) && !merging && keyboard != null && keyboard.digit4Key.isPressed && orbiting.Count > 0;
         guardArea.enabled = guarding;
         launchCooldown = Mathf.Max(0, launchCooldown - dt);
         var mouse = Mouse.current;
+        if (suppressCombatUntilMouseReleased && (mouse == null || (!mouse.leftButton.isPressed && !mouse.rightButton.isPressed)))
+            suppressCombatUntilMouseReleased = false;
         Vector2 cursor = mouse == null ? followHead :
             (Vector2)transform.InverseTransformPoint(view.ScreenToWorldPoint(mouse.position.ReadValue()));
-        if (mouse != null)
+        if (mouse != null && !suppressCombatUntilMouseReleased)
         {
             bool launch = mouse.leftButton.wasPressedThisFrame ||
                 (mouse.leftButton.isPressed && launchCooldown <= 0);
             bool recall = mouse.rightButton.wasPressedThisFrame || mouse.rightButton.isPressed;
-            bool crossSlash = keyboard?.digit3Key.wasPressedThisFrame == true;
+            bool crossSlash = IsSkillUnlocked(Skill.CrossSlash) && keyboard?.digit3Key.wasPressedThisFrame == true;
             if (launch || recall || crossSlash)
             {
                 if (launch && orbiting.Count > 0)
@@ -290,8 +285,9 @@ public sealed class TurnActors : MonoBehaviour
 
         UpdateHitEffects(dt);
         UpdateBullets(dt);
-        foreach (Sword sword in swords)
+        for (int swordIndex = 0; swordIndex < swords.Count; swordIndex++)
         {
+            Sword sword = swords[swordIndex];
             if (sword.State == SwordState.Flying)
                 AdvanceFlight(sword, dt);
             else if (sword.State == SwordState.Rebounding)
@@ -300,7 +296,14 @@ public sealed class TurnActors : MonoBehaviour
                 AdvanceAutoIntercept(sword, dt);
             else if (sword.State == SwordState.Returning)
                 AdvanceReturn(sword, dt);
+            else if (sword.State == SwordState.Planted)
+                AdvancePlanted(sword, dt);
+            ConstrainSwordToView(sword);
+            if (IsChoosingReward) break;
         }
+
+        FlushPendingSwords();
+        if (IsChoosingReward) return;
 
         if (IsAutoInterceptOn)
         {
@@ -402,7 +405,10 @@ public sealed class TurnActors : MonoBehaviour
         for (int i = bullets.Count - 1; i >= 0; i--)
         {
             if (((Vector2)bullets[i].Root.localPosition).sqrMagnitude <= .25f * .25f)
+            {
+                DamagePlayer();
                 RemoveBullet(i);
+            }
         }
     }
 
@@ -589,7 +595,7 @@ public sealed class TurnActors : MonoBehaviour
 
     void LateUpdate()
     {
-        if (view == null || shakeTimer <= 0)
+        if (IsChoosingReward || view == null || shakeTimer <= 0)
             return;
 
         shakeTimer = Mathf.Max(0, shakeTimer - Time.deltaTime);
@@ -599,6 +605,7 @@ public sealed class TurnActors : MonoBehaviour
 
     void OnDisable()
     {
+        RestoreRewardTime();
         if (view != null)
             view.transform.position = cameraRestPosition;
     }
@@ -619,6 +626,7 @@ public sealed class TurnActors : MonoBehaviour
         }
 
         orbiting.Remove(sword);
+        target += (target - (Vector2)sword.Root.localPosition).normalized * launchOvershoot;
         BeginFlight(sword, target);
     }
 
@@ -626,6 +634,36 @@ public sealed class TurnActors : MonoBehaviour
     {
         float edge = GridSize.x * .5f - .65f;
         return new Vector2(Mathf.Clamp(point.x, -edge, edge), Mathf.Clamp(point.y, -edge, edge));
+    }
+
+    Vector2 ClampSwordPosition(Sword sword, Vector2 point)
+    {
+        // Leave room for the whole sword (including its grip) and camera shake.
+        float margin = .7f * SwordScale(sword);
+        Vector2 center = transform.InverseTransformPoint(cameraRestPosition);
+        float halfY = Mathf.Max(0, view.orthographicSize - margin);
+        float halfX = Mathf.Max(0, view.orthographicSize * view.aspect - margin);
+        point = new Vector2(Mathf.Clamp(point.x, center.x - halfX, center.x + halfX),
+            Mathf.Clamp(point.y, center.y - halfY, center.y + halfY));
+        return ClampTarget(point);
+    }
+
+    void ConstrainSwordToView(Sword sword)
+    {
+        Vector2 position = sword.Root.localPosition;
+        Vector2 inside = ClampSwordPosition(sword, position);
+        if (inside == position)
+            return;
+        sword.Root.localPosition = inside;
+        StopSwordAtBoundary(sword);
+    }
+
+    static void StopSwordAtBoundary(Sword sword)
+    {
+        if (sword.InterceptTarget != null)
+            sword.InterceptTarget.Reserved = false;
+        sword.InterceptTarget = null;
+        PlantSword(sword);
     }
 
     bool IsInRecallRange(Sword sword, Vector2 center) =>
@@ -663,54 +701,23 @@ public sealed class TurnActors : MonoBehaviour
             if (!IsInRecallRange(sword, cursor))
                 continue;
 
-            sword.State = SwordState.Returning;
-            sword.Blade.color = sword.FusionSize > 0 ? FusionBlade : ActiveBlade;
-            sword.GroundMark.enabled = false;
+            BeginReturn(sword);
         }
     }
 
     void UpdateBullets(float dt)
     {
-        enemyBurstTimer -= dt;
-        enemyShotTimer -= dt;
-        if (enemyBurstTimer <= 0)
-        {
-            enemyBurstTimer += EnemyBurstInterval;
-            enemyShotsRemaining = SwordCount;
-            enemyShotTimer = 0;
-        }
-
-        if (IsEnemyFiringBurst)
-        {
-            enemyBasicTimer = EnemyBasicInterval;
-            if (enemyShotTimer <= 0)
-            {
-                enemyShotsRemaining--;
-                enemyShotTimer += LaunchInterval;
-                SpawnBullet();
-            }
-        }
-        else
-        {
-            enemyBasicTimer -= dt;
-            if (enemyBasicTimer <= 0)
-            {
-                enemyBasicTimer += EnemyBasicInterval;
-                SpawnBullet();
-            }
-        }
-
         foreach (Bullet bullet in bullets)
         {
             bullet.Previous = bullet.Root.localPosition;
-            bullet.Root.localPosition = Vector2.MoveTowards(bullet.Previous, Vector2.zero, BulletSpeed * dt);
+            bullet.Root.localPosition = Vector2.MoveTowards(bullet.Previous, Vector2.zero, projectileSpeed * dt);
         }
     }
 
-    void SpawnBullet()
+    void SpawnBullet(Vector2 origin)
     {
         var marker = StageManager.Draw(transform, "Enemy bullet", square,
-            new Color32(255, 102, 82, 255), EnemyPosition, Vector2.one * .19f, 5);
+            new Color32(255, 102, 82, 255), origin, Vector2.one * .19f, 5);
         marker.transform.localRotation = Quaternion.Euler(0, 0, 45);
         bullets.Add(new Bullet { Root = marker.transform });
     }
@@ -766,21 +773,47 @@ public sealed class TurnActors : MonoBehaviour
         Vector2 targetPosition = target.Root.localPosition;
         PointSword(sword, targetPosition - position);
         Vector2 next = Vector2.MoveTowards(position, targetPosition, LaunchSpeed * dt);
+        Vector2 inside = ClampSwordPosition(sword, next);
+        bool reachedBoundary = inside != next;
+        next = inside;
         sword.Root.localPosition = next;
         if (DistanceToSegmentSquared(Vector2.zero, position - target.Previous, next - targetPosition)
             > InterceptContact * InterceptContact)
+        {
+            if (reachedBoundary)
+                StopSwordAtBoundary(sword);
             return;
+        }
 
         InterceptBullet(index);
         sword.InterceptTarget = null;
-        sword.State = SwordState.Returning;
+        BeginReturn(sword);
     }
 
-    static void BeginFlight(Sword sword, Vector2 target)
+    static void BeginReturn(Sword sword)
     {
+        sword.ReturnHits.Clear();
+        sword.State = SwordState.Returning;
+        sword.Blade.color = sword.FusionSize > 0 ? FusionBlade : ActiveBlade;
+        sword.GroundMark.enabled = false;
+    }
+
+    static void AdvancePlanted(Sword sword, float dt)
+    {
+        sword.AutoRecallRemaining = Mathf.Max(0, sword.AutoRecallRemaining - dt);
+        if (sword.AutoRecallRemaining <= 0)
+            BeginReturn(sword);
+    }
+
+    void BeginFlight(Sword sword, Vector2 target)
+    {
+        target = ClampSwordPosition(sword, target);
         sword.State = SwordState.Flying;
         sword.Trail.emitting = false;
         sword.Target = target;
+        Vector2 travel = target - (Vector2)sword.Root.localPosition;
+        sword.FlightDirection = sword.LaunchDirection = travel.normalized;
+        sword.FlightDistanceRemaining = travel.magnitude;
         sword.InterceptsRemaining = 1 + sword.FusionSize;
         sword.Recovery = 0;
         SetFusionSize(sword, orbitVisual: false);
@@ -804,10 +837,30 @@ public sealed class TurnActors : MonoBehaviour
             targetIndex = i;
         }
 
-        PointSword(sword, destination - position);
         float speed = LaunchSpeed * Mathf.Lerp(1, .18f, sword.Recovery / InterceptRecovery);
         sword.Recovery = Mathf.Max(0, sword.Recovery - dt);
-        Vector2 next = Vector2.MoveTowards(position, destination, speed * dt);
+        Vector2 next;
+        if (targetIndex >= 0)
+        {
+            // Preserve immediate bullet interception priority and its existing steering.
+            next = Vector2.MoveTowards(position, destination, speed * dt);
+            sword.FlightDirection = (destination - position).normalized;
+        }
+        else
+        {
+            destination = EnemyHomingTarget(sword, position);
+            Vector2 desired = (destination - position).normalized;
+            float turn = Mathf.Clamp(Vector2.SignedAngle(sword.FlightDirection, desired),
+                -enemyHomingTurnSpeed * dt, enemyHomingTurnSpeed * dt);
+            sword.FlightDirection = Quaternion.Euler(0, 0, turn) * sword.FlightDirection;
+            float step = Mathf.Min(speed * dt, sword.FlightDistanceRemaining, Vector2.Distance(position, destination));
+            next = ClampTarget(position + sword.FlightDirection * step);
+        }
+        Vector2 inside = ClampSwordPosition(sword, next);
+        bool reachedBoundary = inside != next;
+        next = inside;
+        sword.FlightDistanceRemaining = Mathf.Max(0, sword.FlightDistanceRemaining - Vector2.Distance(position, next));
+        PointSword(sword, next - position);
         sword.Root.localPosition = next;
         if (TryReboundFromEnemy(sword, position, next))
             return;
@@ -837,13 +890,36 @@ public sealed class TurnActors : MonoBehaviour
                     sword.Recovery = InterceptRecovery;
                 }
             }
+            if (sword.State == SwordState.Flying && (reachedBoundary || sword.FlightDistanceRemaining <= .001f))
+                StopSwordAtBoundary(sword);
             return;
         }
 
-        if (next != sword.Target)
+        if (!reachedBoundary && next != sword.Target && sword.FlightDistanceRemaining > .001f && next != position)
             return;
 
         PlantSword(sword);
+    }
+
+    Vector2 EnemyHomingTarget(Sword sword, Vector2 position)
+    {
+        float nearest = enemyHomingRange * enemyHomingRange;
+        float minimumDot = Mathf.Cos(enemyHomingHalfAngle * Mathf.Deg2Rad);
+        Vector2 target = sword.Target;
+        foreach (Enemy enemy in enemies)
+        {
+            Vector2 offset = (Vector2)enemy.Root.localPosition - position;
+            float distance = offset.sqrMagnitude;
+            if (distance > nearest || distance < .000001f)
+                continue;
+            Vector2 direction = offset.normalized;
+            if (Vector2.Dot(sword.FlightDirection, direction) < minimumDot ||
+                Vector2.Dot(sword.LaunchDirection, direction) < minimumDot)
+                continue;
+            nearest = distance;
+            target = enemy.Root.localPosition;
+        }
+        return target;
     }
 
     bool TryReboundFromEnemy(Sword sword, Vector2 from, Vector2 to)
@@ -853,18 +929,12 @@ public sealed class TurnActors : MonoBehaviour
             return false;
 
         Vector2 direction = travel.normalized;
-        Vector2 relative = from - EnemyPosition;
-        float projection = Vector2.Dot(relative, direction);
-        float discriminant = projection * projection - relative.sqrMagnitude + EnemyHitRadius * EnemyHitRadius;
-        if (discriminant < 0 || (projection >= 0 && relative.sqrMagnitude > EnemyHitRadius * EnemyHitRadius))
+        Enemy enemy = FindFirstEnemyHit(sword, from, to, out float distance);
+        if (enemy == null)
             return false;
-
-        float distance = Mathf.Max(0, -projection - Mathf.Sqrt(discriminant));
-        if (distance > travel.magnitude)
-            return false;
-
+        Vector2 enemyPosition = enemy.Root.localPosition;
         Vector2 impact = from + direction * distance;
-        Vector2 normal = (impact - EnemyPosition).normalized;
+        Vector2 normal = (impact - enemyPosition).normalized;
         Vector2 rebound = normal.sqrMagnitude > 0 && Vector2.Dot(direction, normal) < 0
             ? Vector2.Reflect(direction, normal) : -direction;
         sword.Root.localPosition = impact;
@@ -872,7 +942,7 @@ public sealed class TurnActors : MonoBehaviour
         sword.State = SwordState.Rebounding;
         PointSword(sword, sword.Target - impact);
         SpawnHitBurst(impact, new Color(1, .77f, .34f));
-        hitEffectTimer = HitEffectTime;
+        DamageEnemy(enemy, Mathf.Max(1, sword.FusionSize), direction);
         UpdateHitEffects(0);
         return true;
     }
@@ -893,12 +963,13 @@ public sealed class TurnActors : MonoBehaviour
         return ClampTarget(impact + inward * distance);
     }
 
-    static void AdvanceRebound(Sword sword, float dt)
+    void AdvanceRebound(Sword sword, float dt)
     {
         Vector2 position = sword.Root.localPosition;
         Vector2 next = Vector2.MoveTowards(position, sword.Target, ReboundSpeed * dt);
-        sword.Root.localPosition = next;
-        if (next == sword.Target)
+        Vector2 inside = ClampSwordPosition(sword, next);
+        sword.Root.localPosition = inside;
+        if (inside != next || next == sword.Target)
             PlantSword(sword);
     }
 
@@ -931,10 +1002,6 @@ public sealed class TurnActors : MonoBehaviour
 
     void UpdateHitEffects(float dt)
     {
-        hitEffectTimer = Mathf.Max(0, hitEffectTimer - dt);
-        float remaining = hitEffectTimer / HitEffectTime;
-        enemyCore.color = Color.Lerp(new Color32(255, 184, 174, 255), Color.white, remaining);
-        enemyCore.transform.localScale = Vector3.one * (.29f + .15f * remaining);
         UpdateHitBursts(dt);
     }
 
@@ -974,6 +1041,7 @@ public sealed class TurnActors : MonoBehaviour
     static void PlantSword(Sword sword)
     {
         sword.State = SwordState.Planted;
+        sword.AutoRecallRemaining = AutoRecallDelay;
         sword.Trail.emitting = false;
         SetFusionSize(sword, orbitVisual: false);
         sword.Root.localRotation = Quaternion.identity;
@@ -991,9 +1059,19 @@ public sealed class TurnActors : MonoBehaviour
         PointSword(sword, target - position);
         Vector2 next = Vector2.MoveTowards(position, target, ReturnSpeed * dt);
         sword.Root.localPosition = next;
+        DamageEnemiesOnReturn(sword, position, next);
         if (next != target)
             return;
 
+        sword.ReturnHits.Clear();
+        if (sword.FusionSize > 0)
+        {
+            pendingSwords += sword.FusionSize - 1;
+            sword.FusionSize = 0;
+            sword.Blade.color = ActiveBlade;
+            sword.Visual.localScale = Vector3.one;
+            sword.Visual.localPosition = Vector2.zero;
+        }
         sword.State = SwordState.Orbiting;
         sword.PreviousPosition = next;
         SetFusionSize(sword, orbitVisual: true);
