@@ -7,6 +7,8 @@ public sealed partial class UIManager : MonoBehaviour
     static readonly Color KeyColor = new Color32(113, 248, 225, 255);
     GUIStyle keyLabel, controlLabel, burstLabel;
     Font hudFont;
+    [SerializeField] bool showControlGuide;
+    [SerializeField] bool showWeaponDetails;
 
     void OnGUI()
     {
@@ -20,9 +22,9 @@ public sealed partial class UIManager : MonoBehaviour
         if (actors.IsChoosingReward)
             return;
         actors.DrawFusionCounts();
-        DrawControls(actors);
+        if (showControlGuide) DrawControls(actors);
         DrawSurvival(actors);
-        DrawInventory(actors);
+        if (showWeaponDetails) DrawInventory(actors);
     }
 
     void DrawControls(TurnActors actors)
@@ -56,6 +58,8 @@ public sealed partial class UIManager : MonoBehaviour
         float width = Mathf.Min(280, Screen.width - 24);
         float x = (Screen.width - width) * .5f;
         float y = Screen.height - 28;
+        int seconds = Mathf.FloorToInt(actors.SurvivalTime);
+        GUI.Label(new Rect(x, y - 72, width, 22), $"{seconds / 60:00}:{seconds % 60:00}", burstLabel);
         float charge = (float)(actors.Experience / actors.RequiredExperience);
         var color = new Color32(113, 248, 225, 255);
 
@@ -63,7 +67,7 @@ public sealed partial class UIManager : MonoBehaviour
         Fill(new Rect(x + 2, y + 2, (width - 4) * charge, 8), color);
         GUI.Label(new Rect(x, y - 24, width, 22),
             $"Lv {actors.Level}   EXP {actors.Experience:0}/{actors.RequiredExperience:0}", burstLabel);
-        GUI.Label(new Rect(x, y - 48, width, 22), $"HP {actors.Health}/10   적 {actors.EnemyCount}", burstLabel);
+        GUI.Label(new Rect(x, y - 48, width, 22), $"HP {actors.Health}/10   무기 {actors.ActiveSwordCount}/{actors.OwnedSwordCount}", burstLabel);
         if (actors.IsGameOver)
         {
             var panel = new Rect((Screen.width - 300) * .5f, (Screen.height - 100) * .5f, 300, 100);

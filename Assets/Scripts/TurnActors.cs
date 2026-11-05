@@ -9,10 +9,10 @@ public sealed partial class TurnActors : MonoBehaviour
     [SerializeField, Min(1)] int initialSwordCount = 3;
     public int InitialSwordCount => Mathf.Max(1, initialSwordCount);
     [SerializeField, Min(0)] float launchOvershoot = .8f;
-    [Header("Weak enemy homing")]
-    [SerializeField, Min(0)] float enemyHomingRange = 2f;
-    [SerializeField, Range(0, 45)] float enemyHomingHalfAngle = 20f;
-    [SerializeField, Range(0, 180)] float enemyHomingTurnSpeed = 60f;
+    [Header("Curved enemy homing")]
+    [SerializeField, Min(0)] float enemyHomingRange = 5f;
+    [SerializeField, Range(0, 80)] float enemyHomingHalfAngle = 45f;
+    [SerializeField, Range(0, 720)] float enemyHomingTurnSpeed = 240f;
     const float OrbitRadius = 2.1f;
     const float OrbitSpeed = 1.65f;
     const float GuardOrbitSpeed = 3.3f;
@@ -60,6 +60,7 @@ public sealed partial class TurnActors : MonoBehaviour
         public readonly Dictionary<Enemy, float> GuardHits = new();
         public bool ChainUsed, IsChainFlight;
         public Enemy ChainTarget;
+        public Enemy HomingTarget;
         public float ChainRemaining;
         public Transform Root;
         public Transform Visual;
@@ -837,6 +838,7 @@ public sealed partial class TurnActors : MonoBehaviour
         sword.GuardHits.Clear();
         sword.ChainUsed = sword.IsChainFlight = false;
         sword.ChainTarget = null;
+        sword.HomingTarget = null;
         SetFusionSize(sword, orbitVisual: false);
     }
 
@@ -893,6 +895,7 @@ public sealed partial class TurnActors : MonoBehaviour
         sword.FlightDistanceRemaining = Mathf.Max(0, sword.FlightDistanceRemaining - Vector2.Distance(position, next));
         PointSword(sword, next - position);
         sword.Root.localPosition = next;
+        HitHealthDrops(sword, position, next);
         if (TryReboundFromEnemy(sword, position, next))
             return;
 
@@ -934,10 +937,20 @@ public sealed partial class TurnActors : MonoBehaviour
 
     Vector2 EnemyHomingTarget(Sword sword, Vector2 position)
     {
+        // Keep a captured target while it remains ahead of the original throw.
+        // The existing flight-distance budget bounds the chase, even after a miss.
+        Enemy locked = sword.HomingTarget;
+        if (locked != null && enemies.Contains(locked) && !sword.FlightHits.Contains(locked))
+        {
+            Vector2 offset = (Vector2)locked.Root.localPosition - position;
+            if (Vector2.Angle(sword.LaunchDirection, offset) <= 85f)
+                return locked.Root.localPosition;
+        }
+        sword.HomingTarget = null;
         float range = enemyHomingRange + .25f * homingUpgrades;
         float nearest = range * range;
-        float minimumDot = Mathf.Cos((enemyHomingHalfAngle + 5 * homingUpgrades) * Mathf.Deg2Rad);
-        Vector2 target = sword.Target;
+        float halfAngle = Mathf.Min(80, enemyHomingHalfAngle + 5 * homingUpgrades);
+        float minimumDot = Mathf.Cos(halfAngle * Mathf.Deg2Rad);
         foreach (Enemy enemy in enemies)
         {
             if (sword.FlightHits.Contains(enemy)) continue;
@@ -950,11 +963,10 @@ public sealed partial class TurnActors : MonoBehaviour
                 Vector2.Dot(sword.LaunchDirection, direction) < minimumDot)
                 continue;
             nearest = distance;
-            target = enemy.Root.localPosition;
+            sword.HomingTarget = enemy;
         }
-        return target;
+        return sword.HomingTarget != null ? (Vector2)sword.HomingTarget.Root.localPosition : sword.Target;
     }
-
     bool TryReboundFromEnemy(Sword sword, Vector2 from, Vector2 to)
     {
         Vector2 travel = to - from;
@@ -1101,6 +1113,7 @@ public sealed partial class TurnActors : MonoBehaviour
         PointSword(sword, target - position);
         Vector2 next = Vector2.MoveTowards(position, target, ReturnSpeed * dt);
         sword.Root.localPosition = next;
+        HitHealthDrops(sword, position, next);
         DamageEnemiesOnReturn(sword, position, next);
         if (next != target)
             return;

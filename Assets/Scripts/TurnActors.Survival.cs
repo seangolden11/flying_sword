@@ -5,9 +5,9 @@ using UnityEngine;
 public sealed partial class TurnActors
 {
     [Header("Survival test tuning")]
-    [SerializeField, Min(.1f)] float spawnInterval = 2f;
+    [SerializeField, Min(.1f)] float spawnInterval = 3f;
     [SerializeField, Min(1)] int initialSpawnCount = 1;
-    [SerializeField, Min(1)] float spawnCountGrowthInterval = 60f;
+    [SerializeField, Min(1)] float spawnCountGrowthInterval = 120f;
     [UnityEngine.Serialization.FormerlySerializedAs("additionalEnemiesPerLevel")]
     [SerializeField, Min(0)] int additionalEnemiesPerTimeStep = 1;
     public int CurrentSpawnCount => Mathf.Max(1, initialSpawnCount +
@@ -21,14 +21,60 @@ public sealed partial class TurnActors
     [SerializeField, Min(.1f)] float projectileSpeed = 3.4f;
     [SerializeField, Min(0)] float knockbackSpeed = 6f;
     [SerializeField, Min(.01f)] float knockbackDuration = .2f;
-    [SerializeField, Min(0)] float spawnIntervalReductionPerLevel = .06f;
-    [SerializeField, Min(.05f)] float minimumSpawnInterval = .25f;
-    public float CurrentSpawnInterval => Mathf.Max(Mathf.Max(.05f, minimumSpawnInterval), spawnInterval - (Level - 1) * spawnIntervalReductionPerLevel);
+    public float CurrentSpawnInterval => Mathf.Max(.1f, spawnInterval);
 
     [Header("Progression test tuning")]
     [SerializeField, Min(1)] int initialRequiredExperience = 3;
     [SerializeField, Min(1)] int requiredExperienceIncrease = 2;
 
+    [Header("Health drop test tuning")]
+    [SerializeField, Range(0, 1)] float healthDropChance = .1f;
+    [SerializeField, Min(1)] int healthDropHealing = 1;
+    [SerializeField, Min(.1f)] float healthDropLifetime = 20f;
+    sealed class HealthDrop
+    {
+        public Transform Root;
+        public float Remaining;
+    }
+    readonly List<HealthDrop> healthDrops = new();
+
+    void TryDropHealth(Vector2 position)
+    {
+        if (Random.value >= healthDropChance) return;
+        var item = StageManager.Draw(transform, "Health pickup", square, new Color32(42, 170, 90, 255),
+            position, Vector2.one * .6f, 5);
+        StageManager.Draw(item.transform, "Cross horizontal", square, Color.white, Vector2.zero, new Vector2(.7f, .2f), 6);
+        StageManager.Draw(item.transform, "Cross vertical", square, Color.white, Vector2.zero, new Vector2(.2f, .7f), 6);
+        healthDrops.Add(new HealthDrop { Root = item.transform, Remaining = Mathf.Max(.1f, healthDropLifetime) });
+    }
+
+    void UpdateHealthDrops(float dt)
+    {
+        for (int i = healthDrops.Count - 1; i >= 0; i--)
+        {
+            healthDrops[i].Remaining -= dt;
+            if (healthDrops[i].Remaining > 0) continue;
+            Destroy(healthDrops[i].Root.gameObject);
+            healthDrops.RemoveAt(i);
+        }
+    }
+
+    void HitHealthDrops(Sword sword, Vector2 from, Vector2 to)
+    {
+        Vector2 travel = to - from;
+        if (travel.sqrMagnitude <= .000001f) return;
+        Vector2 bladeBase = from - travel.normalized * (BladeLength * SwordScale(sword));
+        float radius = .35f + BladeHalfWidth * SwordScale(sword);
+        for (int i = healthDrops.Count - 1; i >= 0; i--)
+        {
+            Vector2 position = healthDrops[i].Root.localPosition;
+            if (DistanceToSegmentSquared(position, bladeBase, to) > radius * radius) continue;
+            Destroy(healthDrops[i].Root.gameObject);
+            healthDrops.RemoveAt(i);
+            Health = Mathf.Min(10, Health + Mathf.Max(1, healthDropHealing));
+            SpawnHitBurst(position, new Color(.3f, 1, .5f));
+        }
+    }
     sealed class Enemy
     {
         public Transform Root;
@@ -52,6 +98,7 @@ public sealed partial class TurnActors
     bool hasCounter, hasKillHeal;
     int killsSinceHeal;
     float counterRemaining, combatTime;
+    public float SurvivalTime => combatTime;
     public int Health { get; private set; } = 10;
     public int Level { get; private set; } = 1;
     public double Experience { get; private set; }
@@ -70,6 +117,8 @@ public sealed partial class TurnActors
         foreach (Enemy enemy in enemies)
             Destroy(enemy.Root.gameObject);
         enemies.Clear();
+        foreach (HealthDrop item in healthDrops) Destroy(item.Root.gameObject);
+        healthDrops.Clear();
         Health = 10;
         Level = 1;
         Experience = 0;
@@ -83,6 +132,7 @@ public sealed partial class TurnActors
     void UpdateSurvival(float dt)
     {
         combatTime += dt;
+        UpdateHealthDrops(dt);
         counterRemaining = Mathf.Max(0, counterRemaining - dt);
         invulnerability = Mathf.Max(0, invulnerability - dt);
         heroRenderer.color = invulnerability > 0 && Mathf.Sin(Time.time * 30) > 0
@@ -225,6 +275,7 @@ public sealed partial class TurnActors
         enemy.KnockbackTimer = knockbackDuration;
         if (enemy.Health > 0)
             return;
+        TryDropHealth(enemy.Root.localPosition);
         enemies.Remove(enemy);
         foreach (Sword weapon in swords) weapon.GuardHits.Remove(enemy);
         Destroy(enemy.Root.gameObject);

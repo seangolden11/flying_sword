@@ -43,6 +43,39 @@ public static partial class SurvivalSmokeCheck
     {
         while (actors.IsChoosingReward) Check(ChooseKnownReward(actors, TurnActors.RewardEffect.AddSword), "Drain test level reward");
     }
+    static void CheckHealthDrops(TurnActors actors)
+    {
+        actors.ResetArena();
+        Set(actors, "healthDropChance", 0f);
+        Call(actors, "DamageEnemy", TestEnemy(actors, new Vector2(4, 0)), 100, Vector2.right);
+        var drops = (IList)Field(actors, "healthDrops");
+        Check(drops.Count == 0, "Zero chance does not drop health");
+        Set(actors, "healthDropChance", 1f);
+        Call(actors, "DamageEnemy", TestEnemy(actors, new Vector2(4, 0)), 100, Vector2.right);
+        Check(drops.Count == 1, "Kill drops health at guaranteed chance");
+        Call(actors, "DamagePlayer");
+        Call(actors, "LaunchSword", new Vector2(6, 0));
+        object flying = null;
+        foreach (object weapon in (IList)Field(actors, "swords"))
+            if (Read(weapon, "State").ToString() == "Flying") flying = weapon;
+        Root(flying).localPosition = new Vector2(2, 0);
+        Call(actors, "BeginFlight", flying, new Vector2(6, 0));
+        Call(actors, "AdvanceFlight", flying, .2f);
+        Check(drops.Count == 0 && actors.Health == 10, "Forward throw heals once while passing through pickup");
+        Call(actors, "TryDropHealth", new Vector2(3, 0));
+        Root(flying).localPosition = new Vector2(5, 0);
+        Call(actors, "AdvanceReturn", flying, .2f);
+        Check(drops.Count == 0 && actors.Health == 10, "Return consumes pickup even at full health and respects HP cap");
+        Call(actors, "TryDropHealth", new Vector2(4, 0));
+        Call(actors, "UpdateHealthDrops", 0f);
+        Check(drops.Count == 1, "Paused pickup lifetime does not advance");
+        Call(actors, "UpdateHealthDrops", 20f);
+        Check(drops.Count == 0, "Health pickup expires after twenty combat seconds");
+        Call(actors, "TryDropHealth", new Vector2(4, 0));
+        actors.ResetArena();
+        Check(drops.Count == 0, "Reset clears health drops");
+        Set(actors, "healthDropChance", .1f);
+    }
     static void CheckIntegratedWeapons(TurnActors actors)
     {
         foreach (TurnActors.WeaponKind kind in new[] { TurnActors.WeaponKind.Shard, TurnActors.WeaponKind.Trash,
@@ -278,7 +311,7 @@ public static partial class SurvivalSmokeCheck
         Call(actors, "GainExperience", 8d);
         Check(actors.Level == 3 && (int)Read(enemy, "Health") == 1 && (int)Read(enemy, "MaxHealth") == 2,
             "Level three preserves current and maximum HP of existing enemies");
-        Check(actors.CurrentSpawnInterval < 2, "Spawn interval decreases with player level");
+        Check(actors.CurrentSpawnInterval == 3, "Leveling does not accelerate the three-second spawn interval");
         Check(actors.CurrentSpawnCount == 1, "Level three does not increase spawn batch");
         Call(actors, "GainExperience", 27d);
         Check(actors.Level == 6 && (int)Read(enemy, "Health") == 1 && (int)Read(enemy, "MaxHealth") == 2,
@@ -293,12 +326,12 @@ public static partial class SurvivalSmokeCheck
             "New ranged enemies still have one HP at higher levels");
         DrainRewards(actors);
         Check(actors.CurrentSpawnCount == 1, "Level six also leaves spawn batch unchanged");
-        Set(actors, "combatTime", 59.9f);
-        Check(actors.CurrentSpawnCount == 1, "First minute keeps one enemy per spawn");
-        Set(actors, "combatTime", 60f);
-        Check(actors.CurrentSpawnCount == 2, "One minute adds one enemy to each spawn");
+        Set(actors, "combatTime", 119.9f);
+        Check(actors.CurrentSpawnCount == 1, "First two minutes keep one enemy per spawn");
         Set(actors, "combatTime", 120f);
-        Check(actors.CurrentSpawnCount == 3, "Two minutes produces three enemies per spawn");
+        Check(actors.CurrentSpawnCount == 2, "Two minutes add one enemy to each spawn");
+        Set(actors, "combatTime", 240f);
+        Check(actors.CurrentSpawnCount == 3, "Four minutes produce three enemies per spawn");
         int beforeSpawn = actors.EnemyCount;
         Set(actors, "spawnTimer", 0f);
         Call(actors, "UpdateSurvival", .01f);

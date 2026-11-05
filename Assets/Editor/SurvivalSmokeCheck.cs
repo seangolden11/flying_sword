@@ -67,6 +67,7 @@ public static partial class SurvivalSmokeCheck
             actors.ResetArena();
             CheckGrowthRewards(actors);
             actors.ResetArena();
+            CheckHealthDrops(actors);
             CheckIntegratedWeapons(actors);
             actors.ResetArena();
             CheckIntegratedGrowth(actors);
@@ -187,7 +188,7 @@ public static partial class SurvivalSmokeCheck
         var enemyRoot = (Transform)enemy.GetType().GetField("Root").GetValue(enemy);
         var select = actors.GetType().GetMethod("EnemyHomingTarget", Private);
         Vector2 aim = (Vector2)flying.GetType().GetField("Target").GetValue(flying);
-        foreach (Vector2 offset in new[] { Vector2.left, new Vector2(3, 0), new Vector2(1, 1) })
+        foreach (Vector2 offset in new[] { Vector2.left, new Vector2(6, 0), new Vector2(1, 2) })
         {
             enemyRoot.localPosition = origin + offset;
             Check((Vector2)select.Invoke(actors, new[] { flying, (object)origin }) == aim,
@@ -198,7 +199,10 @@ public static partial class SurvivalSmokeCheck
             "Homing selects nearby forward enemy");
         Call(actors, "AdvanceFlight", flying, .01f);
         float turn = Vector2.Angle(Vector2.right, (Vector2)root.localPosition - origin);
-        Check(turn > .1f && turn <= .61f, "Steering is bounded to 60 degrees per second");
+        Check(turn > .1f && turn <= 2.41f, "Curved steering is bounded to 240 degrees per second");
+        enemyRoot.localPosition = origin + new Vector2(1, 3);
+        Check((Vector2)select.Invoke(actors, new[] { flying, (object)(Vector2)root.localPosition }) == (Vector2)enemyRoot.localPosition,
+            "Captured target stays locked beyond the acquisition cone");
         enemyRoot.localPosition = new Vector2(-10, -10);
         for (int i = 0; i < 100; i++)
         {
