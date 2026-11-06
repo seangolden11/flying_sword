@@ -1,17 +1,31 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public enum SwordState { Orbiting, Flying, Falling, Planted, Returning, Stored }
+public enum SwordState { Orbiting, Flying, Falling, Planted, Returning, Stored, EnemyHeld, EnemyFlying, Preparing }
 
 public sealed class SwordInstance
 {
     public SwordView View;
+    public EnemyState BorrowedFrom;
+    public bool BorrowedUsed;
+    public bool PermanentLoot;
+    public bool IsEnemyWeapon => BorrowedFrom != null || PermanentLoot;
+    public bool PendingRemoval;
+    public float CapturedTimeRemaining;
+    public float CapturedShakeTime;
+    public Color CapturedBladeColor;
     public Transform Root => View.transform;
     public Transform Visual => View.visual;
     public TrailRenderer Trail => View.trail;
     public SpriteRenderer Blade => View.blade;
     public SpriteRenderer GroundMark => View.groundMark;
     public Vector2 Target;
+    public Vector2 RestVelocity;
+    public Vector2 LaunchOffset;
+    public float LaunchPreparation;
+    public int ReturnPhase;
+    public float ReturnSettleTime;
+    public Vector2 ReturnOvershoot;
     public Vector2 PreviousPosition;
     public SwordState State;
     public float MergeOrbitOffset;

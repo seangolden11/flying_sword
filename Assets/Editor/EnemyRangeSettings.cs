@@ -28,7 +28,7 @@ public static class EnemyRangeSettings
     {
         string previous = SceneManager.GetActiveScene().path;
         EditorSceneManager.SaveOpenScenes();
-        foreach (string name in new[] { "Combat", "Metroidvania" })
+        foreach (string name in new[] { "Combat", "Metroidvania", "Boss" })
         {
             var scene = EditorSceneManager.OpenScene("Assets/Scenes/" + name + ".unity");
             foreach (var enemy in Object.FindObjectsByType<EnemySystem>(FindObjectsSortMode.None))
@@ -41,6 +41,6 @@ public static class EnemyRangeSettings
             EditorSceneManager.SaveScene(scene);
         }
         if (!string.IsNullOrEmpty(previous)) EditorSceneManager.OpenScene(previous);
-        Debug.Log("Enemy detection range saved as 10 in Combat and Metroidvania.");
+        Debug.Log("Enemy detection range saved as 10 in Combat, Metroidvania and Boss.");
     }
 }

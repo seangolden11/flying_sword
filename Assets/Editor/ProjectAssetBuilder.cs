@@ -14,7 +14,7 @@ using UnityEngine.UI;
 public static class ProjectAssetBuilder
 {
     const string Root = "Assets/Game";
-    static Sprite square, blade, circle, icon;
+    static Sprite square, blade, circle, icon, guardSprite, gripSprite;
     static Material material;
     static Font font;
     static SwordDefinition[] definitions;
@@ -41,7 +41,10 @@ public static class ProjectAssetBuilder
         AssetDatabase.Refresh();
         font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         square = SpriteAsset("Square", (x,y) => Color.white);
-        blade = SpriteAsset("Blade", (x,y) => Mathf.Abs(x - .5f) < .5f * y ? Color.white : Color.clear);
+        blade = AssetDatabase.LoadAssetAtPath<Sprite>(Root + "/Art/Blade.png");
+        if (!blade) blade = SpriteAsset("Blade", (x,y) => Mathf.Abs(x-.5f) < .34f * Mathf.Min(1,y/.26f) ? Color.white : Color.clear);
+        guardSprite = AssetDatabase.LoadAssetAtPath<Sprite>(Root + "/Art/SwordGuard.png");
+        gripSprite = AssetDatabase.LoadAssetAtPath<Sprite>(Root + "/Art/SwordGrip.png");
         circle = SpriteAsset("Range", (x,y) => Mathf.Abs(new Vector2(x-.5f,y-.5f).magnitude-.47f)<.015f ? Color.white : Color.clear);
         icon = SpriteAsset("SwordIcon", (x,y) => (y>.28f && y<.93f && Mathf.Abs(x-.5f)<.095f*(.96f-y)/.68f) || (y>.24f && y<.30f && x>.25f && x<.75f) || (y>.08f && y<.25f && Mathf.Abs(x-.5f)<.045f) ? Color.white : Color.clear);
         material = AssetDatabase.LoadAssetAtPath<Material>(Root + "/Art/SwordTrail.mat");
@@ -56,6 +59,7 @@ public static class ProjectAssetBuilder
         EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene("Assets/Scenes/Title.unity",true),new EditorBuildSettingsScene("Assets/Scenes/Combat.unity",true),new EditorBuildSettingsScene("Assets/Scenes/Metroidvania.unity",true) };
         AssetDatabase.SaveAssets();
         StageExpansion.Apply();
+        BossStageSetup.Apply();
         EditorSceneManager.OpenScene("Assets/Scenes/Title.unity");
         Debug.Log("Flying Sword assets built: 3 scenes, gameplay prefabs, Canvas UI and 4 sword definitions.");
     }
@@ -91,7 +95,7 @@ public static class ProjectAssetBuilder
     }
     static TrailRenderer Trail(Transform parent,float width)
     {
-        var go=new GameObject("Trail");go.transform.SetParent(parent,false);var t=go.AddComponent<TrailRenderer>();t.sharedMaterial=material;t.time=.22f;t.startWidth=width;t.endWidth=0;t.startColor=new Color(.38f,1,.92f,.65f);t.endColor=new Color(.38f,1,.92f,0);t.minVertexDistance=.025f;t.sortingOrder=3;t.emitting=false;return t;
+        var go=new GameObject("Trail");go.transform.SetParent(parent,false);go.transform.localPosition=new Vector3(0,.50f,0);var t=go.AddComponent<TrailRenderer>();t.sharedMaterial=material;t.time=.20f;t.startWidth=width;t.endWidth=0;t.startColor=new Color(.38f,1,.92f,.65f);t.endColor=new Color(.38f,1,.92f,0);t.minVertexDistance=.035f;t.numCornerVertices=3;t.numCapVertices=3;t.shadowCastingMode=UnityEngine.Rendering.ShadowCastingMode.Off;t.receiveShadows=false;t.sortingOrder=3;t.emitting=false;return t;
     }
     static void BuildDefinitions()
     {
@@ -103,11 +107,11 @@ public static class ProjectAssetBuilder
     static SwordView BuildSword()
     {
         var go=new GameObject("Sword");var v=go.AddComponent<SwordView>();var visual=new GameObject("Visual").transform;visual.SetParent(go.transform,false);v.visual=visual;
-        v.blade=Sprite("Blade",visual,new Vector2(0,.23f),new Vector2(.15f,.46f),Mint,blade,5);
-        Sprite("Guard",visual,new Vector2(0,.46f),new Vector2(.30f,.055f),new Color32(244,197,112,255),null,6);
-        Sprite("Grip",visual,new Vector2(0,.55f),new Vector2(.065f,.15f),new Color32(98,110,138,255),null,6);
+        v.blade=Sprite("Blade",visual,new Vector2(0,.23f),new Vector2(.18f,.46f),Mint,blade,5);
+        Sprite("Guard",visual,new Vector2(0,.46f),new Vector2(.22f,.055f),new Color32(244,197,112,255),guardSprite,6);
+        Sprite("Grip",visual,new Vector2(0,.54f),new Vector2(.055f,.15f),new Color32(98,110,138,255),gripSprite,6);
         v.groundMark=Sprite("Ground mark",go.transform,Vector2.zero,new Vector2(.35f,.055f),Mint,null,2);v.groundMark.enabled=false;
-        v.trail=Trail(visual,.085f);
+        v.trail=Trail(visual,.065f);
         var canvas=WorldCanvas(go.transform,new Vector2(0,.9f));v.fusionCount=Label("Fusion count",canvas,"",28,TextAnchor.MiddleCenter);Fill(v.fusionCount.rectTransform);v.fusionCount.gameObject.SetActive(false);
         return Save<SwordView>(go,"Sword");
     }
@@ -115,7 +119,7 @@ public static class ProjectAssetBuilder
     {
         var go=new GameObject("Player");var controller=go.AddComponent<PlayerController>();
         var hero=Sprite("Rider",go.transform,new Vector2(0,.12f),new Vector2(.27f,.46f),new Color32(245,238,218,255),null,8);
-        var mount=UnityEngine.Object.Instantiate(sword,go.transform);mount.name="Riding sword";mount.transform.localPosition=new Vector2(.75f,-.17f);mount.transform.localRotation=Quaternion.Euler(0,0,90);mount.transform.localScale=new Vector3(1.25f,2.3f,1);mount.trail.time=.45f;mount.trail.startWidth=.16f;
+        var mount=UnityEngine.Object.Instantiate(sword,go.transform);mount.name="Riding sword";mount.transform.localPosition=new Vector2(.75f,-.17f);mount.transform.localRotation=Quaternion.Euler(0,0,90);mount.transform.localScale=new Vector3(1.25f,2.3f,1);mount.trail.time=.28f;mount.trail.startWidth=.11f;
         Set(controller,"hero",hero);Set(controller,"mountTrail",mount.trail);return Save<PlayerController>(go,"Player");
     }
     static Transform WorldCanvas(Transform parent,Vector2 position)

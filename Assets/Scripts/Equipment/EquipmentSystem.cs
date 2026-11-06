@@ -45,7 +45,7 @@ public sealed class EquipmentSystem : MonoBehaviour
         int count = 0;
         foreach (SwordInstance sword in inventory)
         {
-            if (sword.State != SwordState.Stored)
+            if (sword.State != SwordState.Stored && sword.State != SwordState.EnemyHeld && sword.State != SwordState.EnemyFlying)
                 AddBonuses(sword, ref speed, ref recall, ref count);
         }
         if (swordSystem != null && swordSystem.MergingSword != null && swordSystem.MergingSword.FusionSize > 0)

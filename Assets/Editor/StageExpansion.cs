@@ -69,7 +69,7 @@ public static class StageExpansion
             go.transform.position = position;
             var placement = go.AddComponent<EnemyPlacement>();
             placement.boss = boss;
-            placement.health = boss ? 180 : 30;
+            placement.health = boss ? EnemySystem.BossMaxHealth : 30;
             placement.scale = boss ? 2 : 1;
             placements.Add(placement);
             return placement;

@@ -17,6 +17,7 @@ public sealed class StageManager : MonoBehaviour
 
     void Start()
     {
+        StoryProgress.RecordStageEntry();
         Time.timeScale = 1;
         player.Initialize(geometry, cameraFollow);
         equipment.Initialize(swordSystem);

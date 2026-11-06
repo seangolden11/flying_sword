@@ -23,6 +23,10 @@ public sealed class EnemyView : MonoBehaviour
             GameFonts.Apply(transform);
             fontReady = true;
         }
+        healthText.gameObject.SetActive(!enemy.IsBoss);
+        healthFill.transform.parent.gameObject.SetActive(!enemy.IsBoss);
+        burstFill.transform.parent.gameObject.SetActive(!enemy.IsBoss);
+        statusText.gameObject.SetActive(!enemy.IsBoss);
         float health = (float)enemy.Health / enemy.MaxHealth;
         float flash = enemy.HitTimer / .22f;
         Color damaged = Color.Lerp(new Color32(77, 52, 64, 255), new Color32(225, 77, 109, 255), health);
@@ -37,8 +41,21 @@ public sealed class EnemyView : MonoBehaviour
         statusText.text = enemy.AlertedByDamage ? "피격 인지 · 교전 중" :
             !enemy.IsInRange ? "범위 밖" : !enemy.HasLineOfSight ? "시야 차단" :
             enemy.IsFiring ? "특공 발사 중" : $"특공 {Mathf.Max(0, enemy.BurstTimer):0.0}초";
-        detectionCircle.enabled = sightLine.enabled = showRange;
-        if (!showRange)
+        if (enemy.IsBoss && enemy.BossSword != null)
+        {
+            EnemyBullet sword = enemy.BossSword;
+            burstFill.fillAmount = sword.State == BossSwordState.Ready || sword.State == BossSwordState.Returning
+                ? 1 : sword.State == BossSwordState.Flying ? 0 : 1 - sword.RecallTime / 3;
+            statusText.text = sword.State switch
+            {
+                BossSwordState.Flying => "검 발사 중",
+                BossSwordState.Falling or BossSwordState.Planted => "검 회수 대기",
+                BossSwordState.Returning => "검 회수 중",
+                _ => enemy.IsAware ? "검 발사 준비" : "대기 중"
+            };
+        }
+        detectionCircle.enabled = sightLine.enabled = showRange && !enemy.IsBoss;
+        if (!showRange || enemy.IsBoss)
             return;
         float localRange = range / Mathf.Max(.001f, Mathf.Abs(transform.lossyScale.x));
         if (!Mathf.Approximately(drawnRadius, localRange))

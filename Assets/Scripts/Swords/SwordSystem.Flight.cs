@@ -5,13 +5,25 @@ public sealed partial class SwordSystem
 {
     void BeginFlight(SwordInstance sword, Vector2 target)
     {
+        if (sword.IsEnemyWeapon)
+        {
+            sword.BorrowedUsed = !sword.PermanentLoot;
+            sword.Visual.localPosition = Vector3.zero;
+            sword.Visual.localRotation = Quaternion.identity;
+        }
         sword.State = SwordState.Flying;
+        sword.Blade.color = ReadyBladeColor(sword);
         sword.CurveEnemy = null;
         sword.Trail.Clear();
         sword.BlockRecoilTime = 0;
         sword.BlocksRemaining = Mathf.Max(1, sword.FusionSize);
         sword.ContactEnemy = null;
-        sword.Trail.emitting = false;
+        sword.Trail.time = .20f;
+        sword.Trail.startWidth = .065f;
+        Color trailColor = sword.IsEnemyWeapon && !sword.PermanentLoot ? new Color(1,.08f,.12f) : SwordKindColor(sword.Kind);
+        sword.Trail.startColor = new Color(trailColor.r,trailColor.g,trailColor.b,.65f);
+        sword.Trail.endColor = new Color(trailColor.r,trailColor.g,trailColor.b,0);
+        sword.Trail.emitting = true;
         sword.Target = target;
         SetFusionSize(sword, orbitVisual: false);
     }
@@ -42,7 +54,7 @@ public sealed partial class SwordSystem
         else
         {
             sword.CurveEnemy = null;
-            sword.Trail.emitting = false;
+            sword.Trail.emitting = true;
             next = recoiling ? position + sword.BlockRecoilVelocity * recoilStep :
                 Vector2.MoveTowards(position, destination, LaunchSpeed * SwordSpeedMultiplier * dt);
         }
@@ -94,7 +106,8 @@ public sealed partial class SwordSystem
         if (length <= .000001f)
             return false;
 
-        float releaseRadius = EnemyHitRadius + EnemyContactMargin;
+        float releaseRadius = EnemyHitRadius * (sword.ContactEnemy != null ?
+            Mathf.Abs(sword.ContactEnemy.View.transform.lossyScale.x) : 1) + EnemyContactMargin;
         if (sword.ContactEnemy != null && (sword.ContactEnemy.Health == 0 ||
             (from - sword.ContactEnemy.Position).sqrMagnitude > releaseRadius * releaseRadius))
             sword.ContactEnemy = null;
@@ -108,8 +121,9 @@ public sealed partial class SwordSystem
                 continue;
             Vector2 relative = from - enemy.Position;
             float projection = Vector2.Dot(relative, direction);
-            float discriminant = projection * projection - relative.sqrMagnitude + EnemyHitRadius * EnemyHitRadius;
-            if (discriminant < 0 || (projection >= 0 && relative.sqrMagnitude > EnemyHitRadius * EnemyHitRadius))
+            float hitRadius = EnemyHitRadius * Mathf.Abs(enemy.View.transform.lossyScale.x);
+            float discriminant = projection * projection - relative.sqrMagnitude + hitRadius * hitRadius;
+            if (discriminant < 0 || (projection >= 0 && relative.sqrMagnitude > hitRadius * hitRadius))
                 continue;
             float distance = Mathf.Max(0, -projection - Mathf.Sqrt(discriminant));
             if (distance > nearest)
@@ -155,8 +169,13 @@ public sealed partial class SwordSystem
         enemySystem.RemoveBullet(index);
     }
 
-    static void BeginFall(SwordInstance sword)
+    void BeginFall(SwordInstance sword)
     {
+        if (sword.BorrowedFrom != null && sword.BorrowedUsed)
+        {
+            BeginRecall(sword);
+            return;
+        }
         sword.State = SwordState.Falling;
         sword.FallVelocity = Vector2.zero;
         sword.ReturnAfterRecoil = 0;
@@ -210,6 +229,8 @@ public sealed partial class SwordSystem
 
     void AdvancePlanted(SwordInstance sword, float dt)
     {
+        if (sword.BorrowedFrom == null || sword.PermanentLoot)
+            return;
         sword.RecallCooldown = Mathf.Max(0, sword.RecallCooldown - dt);
         float charge = 1 - sword.RecallCooldown / Mathf.Max(.1f, swordRecallCooldown);
         sword.GroundMark.color = Color.Lerp(new Color32(76, 101, 120, 255), ActiveBlade, charge);
@@ -219,6 +240,11 @@ public sealed partial class SwordSystem
 
     void SetPlanted(SwordInstance sword, Vector2 direction, Vector2 normal)
     {
+        if (sword.BorrowedFrom != null && sword.BorrowedUsed)
+        {
+            BeginRecall(sword);
+            return;
+        }
         sword.Trail.emitting = false;
         PointSword(sword, direction.sqrMagnitude > 0 ? direction : -normal);
         sword.GroundMark.transform.rotation = sword.Root.parent.rotation *
@@ -233,27 +259,28 @@ public sealed partial class SwordSystem
     void AdvanceReturn(SwordInstance sword, float dt)
     {
         Vector2 position = sword.Root.localPosition;
-        Vector2 target = RiderPosition + ReturnTarget(position - RiderPosition);
-        PointSword(sword, target - position);
-        Vector2 next = Vector2.MoveTowards(position, target, EffectiveReturnSpeed * dt);
+        Vector2 home = RestPosition(orbiting.Count,orbiting.Count+1);
+        Vector2 target = home+(sword.ReturnPhase == 0 ? sword.ReturnOvershoot : Vector2.zero);
+        PointSword(sword,target-position);
+        Vector2 next = sword.ReturnPhase == 0 ? Vector2.MoveTowards(position,target,EffectiveReturnSpeed*dt) :
+            Vector2.SmoothDamp(position,target,ref sword.RestVelocity,.10f,EffectiveReturnSpeed,dt);
         sword.Root.localPosition = next;
-        if (next != target)
-            return;
-
-        List<SwordInstance> returnedSwords = SeparateSword(sword);
-        Vector2 offset = next - RiderPosition;
-        float angle = Mathf.Atan2(offset.y, offset.x);
-        for (int i = 0; i < returnedSwords.Count; i++)
+        if (sword.ReturnPhase == 1) sword.ReturnSettleTime += dt;
+        if (Vector2.Distance(next,target) > .035f && sword.ReturnSettleTime < .2f) return;
+        if (sword.ReturnPhase == 0)
         {
-            SwordInstance returned = returnedSwords[i];
-            float splitAngle = angle + (i - (returnedSwords.Count - 1) * .5f) * .1f;
-            Vector2 outward = OrbitDirection(splitAngle);
-            Vector2 orbitPosition = RiderPosition + outward * OrbitRadius;
+            sword.ReturnPhase = 1;
+            sword.RestVelocity = Vector2.zero;
+            sword.Trail.emitting = false;
+            return;
+        }
+        foreach (SwordInstance returned in SeparateSword(sword))
+        {
             returned.State = SwordState.Orbiting;
-            returned.Root.localPosition = orbitPosition;
-            returned.PreviousPosition = orbitPosition;
-            returned.MergeOrbitOffset = splitAngle - orbitAngle;
-            PointSword(returned, outward);
+            returned.Trail.emitting = false;
+            returned.Trail.Clear();
+            returned.PreviousPosition = returned.Root.localPosition;
+            returned.RestVelocity = Vector2.zero;
             orbiting.Add(returned);
         }
     }
@@ -274,10 +301,15 @@ public sealed partial class SwordSystem
                 Vector2.Distance(sword.CurveControl, enemy.Position));
             if (!sword.Trail.emitting)
                 sword.Trail.Clear();
-            sword.Trail.time = .45f;
-            sword.Trail.startWidth = .1f + sword.FusionSize * .012f;
-            sword.Trail.startColor = new Color(1, .69f, .36f, .85f);
-            sword.Trail.endColor = new Color(.44f, .86f, 1, 0);
+            sword.Trail.time = .26f;
+            sword.Trail.startWidth = .07f + sword.FusionSize * .008f;
+            if (sword.PermanentLoot)
+                ApplyOwnedSwordColors(sword);
+            else
+            {
+                sword.Trail.startColor = sword.BorrowedFrom != null ? new Color(1,.08f,.12f,.8f) : new Color(1, .69f, .36f, .85f);
+                sword.Trail.endColor = sword.BorrowedFrom != null ? new Color(.65f,.015f,.04f,0) : new Color(.44f, .86f, 1, 0);
+            }
             sword.Trail.emitting = true;
         }
 

@@ -1,8 +1,9 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public sealed class EnemySystem : MonoBehaviour
+public sealed partial class EnemySystem : MonoBehaviour
 {
+    public const int BossMaxHealth = 50;
     [SerializeField] EnemyView enemyPrefab;
     [SerializeField] BulletView bulletPrefab;
     [SerializeField, Min(1)] int maxHealth = 30;
@@ -22,6 +23,10 @@ public sealed class EnemySystem : MonoBehaviour
     readonly List<EnemyBullet> bullets = new();
     readonly Stack<EnemyView> enemyPool = new();
     readonly Stack<BulletView> bulletPool = new();
+    readonly Stack<EnemyView> bossPool = new();
+    readonly Stack<BulletView> swordProjectilePool = new();
+    EnemyView swordBossPrefab;
+    BulletView swordProjectilePrefab;
     StageGeometry geometry;
     PlayerController player;
     Camera view;
@@ -34,6 +39,9 @@ public sealed class EnemySystem : MonoBehaviour
 
     public void Initialize(StageGeometry stageGeometry, PlayerController target, Camera camera)
     {
+        swordBossPrefab = Resources.Load<EnemyView>("Enemies/SwordBoss");
+        swordProjectilePrefab = Resources.Load<BulletView>("Enemies/HomingSword");
+        areaWarningPrefab = Resources.Load<GameObject>("Effects/BossAreaWarning");
         geometry = stageGeometry;
         player = target;
         view = camera;
@@ -41,10 +49,13 @@ public sealed class EnemySystem : MonoBehaviour
 
     public void ResetEnemies()
     {
+        ResetAreaAttacks();
+        ResetBossLoot();
         foreach (EnemyState enemy in enemies)
         {
+            ReleaseBossSword(enemy);
             enemy.View.gameObject.SetActive(false);
-            enemyPool.Push(enemy.View);
+            (enemy.IsBoss ? bossPool : enemyPool).Push(enemy.View);
         }
         enemies.Clear();
         for (int i = bullets.Count - 1; i >= 0; i--)
@@ -52,7 +63,7 @@ public sealed class EnemySystem : MonoBehaviour
         RespawnTime = respawnDelay;
         if (fixedEncounters)
             foreach (EnemyPlacement placement in placements)
-                if (!placement.boss) SpawnPlaced(placement);
+                if (!placement.boss || placement.spawnOnStart) SpawnPlaced(placement);
     }
 
     public void Tick(float dt)
@@ -65,17 +76,44 @@ public sealed class EnemySystem : MonoBehaviour
         }
         foreach (EnemyState enemy in enemies)
         {
+            if (enemy.SwordVisual != null) enemy.SwordVisual.Face(player.Position);
+            TickBossSword(enemy, dt);
             UpdateFire(enemy, dt);
             enemy.HitTimer = Mathf.Max(0, enemy.HitTimer - dt);
             enemy.View.Refresh(enemy, this, player.Position, showDetectionRange, detectionRange, view);
         }
+        TickBossLoot(dt);
+        AdvanceAreaAttacks(dt);
         for (int i = bullets.Count - 1; i >= 0; i--)
         {
             EnemyBullet bullet = bullets[i];
             bullet.Previous = bullet.Root.position;
+            if (bullet.PlayerSword != null)
+            {
+                AdvanceStolenPlayerSword(i,dt);
+                continue;
+            }
+            if (bullet.HomingSword)
+            {
+                bullet.Lifetime -= dt;
+                if (bullet.Lifetime <= 0)
+                {
+                    RemoveBullet(i);
+                    continue;
+                }
+                Vector2 desired = player.Position - bullet.Previous;
+                if (desired.sqrMagnitude > .000001f)
+                    bullet.Velocity = Vector3.RotateTowards(bullet.Velocity,
+                        desired.normalized * 7.5f, 110 * Mathf.Deg2Rad * dt, 0);
+                bullet.Root.rotation = Quaternion.Euler(0, 0,
+                    Vector2.SignedAngle(Vector2.down, bullet.Velocity));
+            }
             Vector2 next = bullet.Previous + bullet.Velocity * dt;
-            if (geometry.ClipTerrain(bullet.Previous, next, Vector2.zero, out _))
+            if (geometry.ClipTerrain(bullet.Previous, next, Vector2.zero, out Vector2 impact))
+            {
+                bullet.Root.position = impact;
                 RemoveBullet(i);
+            }
             else
                 bullet.Root.position = next;
         }
@@ -117,20 +155,24 @@ public sealed class EnemySystem : MonoBehaviour
     }
 
     public EnemyState SpawnPlaced(EnemyPlacement placement)
-        => SpawnEnemy(placement.transform.position, placement.health, placement.boss, placement.scale);
+        => SpawnEnemy(placement.transform.position, placement.boss ? BossMaxHealth : placement.health, placement.boss, placement.scale);
 
     EnemyState SpawnEnemy(Vector2 position, int health, bool boss, float scale)
     {
-        EnemyView enemyView = enemyPool.Count > 0 ? enemyPool.Pop() : Instantiate(enemyPrefab, transform);
+        Stack<EnemyView> pool = boss ? bossPool : enemyPool;
+        EnemyView prefab = boss && swordBossPrefab != null ? swordBossPrefab : enemyPrefab;
+        EnemyView enemyView = pool.Count > 0 ? pool.Pop() : Instantiate(prefab, transform);
         enemyView.transform.position = position;
         enemyView.transform.localScale = Vector3.one * scale;
         enemyView.gameObject.SetActive(true);
         enemyView.SetLocked(false);
         var enemy = new EnemyState
         {
-            View = enemyView, Health = health, MaxHealth = health, IsBoss = boss,
-            BurstTimer = burstInterval, BasicTimer = Random.Range(.3f, basicInterval)
+            View = enemyView, SwordVisual = enemyView.GetComponent<SwordBossVisual>(),
+            Health = health, MaxHealth = health, IsBoss = boss,
+            BurstTimer = burstInterval, BasicTimer = boss ? 1.1f : Random.Range(.3f, basicInterval)
         };
+        if (boss) CreateBossSword(enemy);
         enemies.Add(enemy);
         enemyView.Refresh(enemy, this, player.Position, showDetectionRange, detectionRange, view);
         return enemy;
@@ -144,11 +186,21 @@ public sealed class EnemySystem : MonoBehaviour
 
     void UpdateFire(EnemyState enemy, float dt)
     {
-        enemy.IsInRange = (enemy.Position - player.Position).sqrMagnitude <= detectionRange * detectionRange;
-        enemy.HasLineOfSight = !geometry.ClipTerrain(enemy.Position, player.Position, Vector2.zero, out _);
+        enemy.IsInRange = enemy.IsBoss || (enemy.Position - player.Position).sqrMagnitude <= detectionRange * detectionRange;
+        enemy.HasLineOfSight = enemy.IsBoss || !geometry.ClipTerrain(enemy.Position, player.Position, Vector2.zero, out _);
         enemy.IsAware = enemy.AlertedByDamage || (enemy.IsInRange && enemy.HasLineOfSight);
         if (!enemy.IsAware)
             return;
+        if (enemy.IsBoss)
+        {
+            TickBossAreaPattern(enemy,dt);
+            if (enemy.BossSword != null && enemy.BossSword.State == BossSwordState.Ready)
+            {
+                enemy.BasicTimer -= dt;
+                if (enemy.BasicTimer <= 0) LaunchBossSword(enemy);
+            }
+            return;
+        }
         enemy.BurstTimer -= dt;
         enemy.ShotTimer -= dt;
         if (enemy.BurstTimer <= 0)
@@ -159,12 +211,12 @@ public sealed class EnemySystem : MonoBehaviour
         }
         if (enemy.IsFiring)
         {
-            enemy.BasicTimer = basicInterval * (enemy.IsBoss ? .65f : 1);
+            enemy.BasicTimer = basicInterval;
             if (enemy.ShotTimer <= 0)
             {
                 enemy.ShotsRemaining--;
                 enemy.ShotTimer += burstShotInterval;
-                SpawnBullet(enemy.Position);
+                SpawnAttack(enemy);
             }
         }
         else
@@ -172,31 +224,59 @@ public sealed class EnemySystem : MonoBehaviour
             enemy.BasicTimer -= dt;
             if (enemy.BasicTimer <= 0)
             {
-                enemy.BasicTimer += basicInterval * (enemy.IsBoss ? .65f : 1);
-                SpawnBullet(enemy.Position);
+                enemy.BasicTimer += basicInterval;
+                SpawnAttack(enemy);
             }
         }
     }
 
-    void SpawnBullet(Vector2 position)
+    void SpawnAttack(EnemyState enemy)
     {
-        BulletView bulletView = bulletPool.Count > 0 ? bulletPool.Pop() : Instantiate(bulletPrefab, transform);
+        Vector2 direction = (player.Position - enemy.Position).normalized;
+        SpawnProjectile(enemy.Position + (enemy.IsBoss ? direction * 1.1f : Vector2.zero), enemy.IsBoss);
+    }
+
+    void SpawnBullet(Vector2 position) => SpawnProjectile(position, false);
+
+    void SpawnProjectile(Vector2 position, bool homingSword)
+    {
+        Stack<BulletView> pool = homingSword ? swordProjectilePool : bulletPool;
+        BulletView prefab = homingSword && swordProjectilePrefab != null ? swordProjectilePrefab : bulletPrefab;
+        BulletView bulletView = pool.Count > 0 ? pool.Pop() : Instantiate(prefab, transform);
         bulletView.transform.position = position;
         bulletView.gameObject.SetActive(true);
         Vector2 direction = player.Position - position;
         if (direction.sqrMagnitude <= .000001f)
             direction = Vector2.left;
+        bulletView.transform.rotation = homingSword ? Quaternion.Euler(0, 0,
+            Vector2.SignedAngle(Vector2.down, direction)) : Quaternion.identity;
+        bulletView.ResetTrail(homingSword);
         bullets.Add(new EnemyBullet
         {
-            View = bulletView, Previous = position, Velocity = direction.normalized * bulletSpeed
+            View = bulletView, Previous = position, Velocity = direction.normalized * (homingSword ? 7.5f : bulletSpeed),
+            HomingSword = homingSword, Lifetime = 7
         });
     }
 
     public void RemoveBullet(int index)
     {
         EnemyBullet bullet = bullets[index];
+        if (bullet.PlayerSword != null)
+        {
+            bullet.Spent = true;
+            bullet.PlayerSword.Trail.emitting = false;
+            bullets.RemoveAt(index);
+            return;
+        }
+        if (bullet.Owner != null)
+        {
+            bullets.RemoveAt(index);
+            DisableBossSword(bullet);
+            return;
+        }
+        bullet.View.ResetTrail(false);
         bullet.View.gameObject.SetActive(false);
-        bulletPool.Push(bullet.View);
+        (bullet.HomingSword ? swordProjectilePool : bulletPool).Push(bullet.View);
         bullets.RemoveAt(index);
     }
 
@@ -212,8 +292,10 @@ public sealed class EnemySystem : MonoBehaviour
         enemy.HitTimer = .22f;
         if (enemy.Health > 0)
             return;
+        if (enemy.IsBoss) DropBossLoot(enemy);
+        else ReleaseBossSword(enemy);
         enemy.View.gameObject.SetActive(false);
-        enemyPool.Push(enemy.View);
+        (enemy.IsBoss ? bossPool : enemyPool).Push(enemy.View);
         enemies.Remove(enemy);
         if (enemies.Count == 0)
             RespawnTime = respawnDelay;

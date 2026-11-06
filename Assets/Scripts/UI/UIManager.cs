@@ -7,6 +7,7 @@ using UnityEngine.UI;
 [DefaultExecutionOrder(-100)]
 public sealed class UIManager : MonoBehaviour
 {
+    public const bool InventoryEnabled = false;
     [SerializeField] bool titleScreen;
     [SerializeField] GameObject titlePanel;
     [SerializeField] GameObject hud;
@@ -19,6 +20,7 @@ public sealed class UIManager : MonoBehaviour
     [SerializeField] Text controls;
     [SerializeField] Text waveTimer;
     StageManager stage;
+    BossHealthBar bossHealthBar;
     float resumeTimeScale = 1;
     bool paused;
 
@@ -26,6 +28,11 @@ public sealed class UIManager : MonoBehaviour
     {
         Time.timeScale = 1;
         GameFonts.Apply(transform);
+        if (!titleScreen)
+        {
+            var prefab = Resources.Load<BossHealthBar>("UI/BossHealthBar");
+            if (prefab != null) bossHealthBar = Instantiate(prefab, hud.transform, false);
+        }
         var input = GetComponentInChildren<InputSystemUIInputModule>(true);
         if (input != null)
             input.AssignDefaultActions();
@@ -34,11 +41,14 @@ public sealed class UIManager : MonoBehaviour
         pausePanel.SetActive(false);
         defeatPanel.SetActive(false);
         inventory.gameObject.SetActive(false);
+        var bagButton = hud.transform.Find("Open inventory");
+        if (bagButton != null) bagButton.gameObject.SetActive(InventoryEnabled);
     }
 
     public void Initialize(StageManager owner)
     {
         stage = owner;
+        if (bossHealthBar != null) bossHealthBar.Initialize(stage.Enemies);
         inventory.Initialize(stage.Equipment, stage.Swords);
     }
 
@@ -59,7 +69,7 @@ public sealed class UIManager : MonoBehaviour
             return;
         }
         var keyboard = Keyboard.current;
-        if (keyboard?.tabKey.wasPressedThisFrame == true)
+        if (InventoryEnabled && keyboard?.tabKey.wasPressedThisFrame == true)
         {
             if (inventory.gameObject.activeSelf)
                 Resume();
@@ -82,11 +92,11 @@ public sealed class UIManager : MonoBehaviour
         playerHealthFill.fillAmount = (float)stage.Player.Health / PlayerController.MaxHealth;
         swordCount.text = $"사용 가능 검 {stage.Swords.ActiveSwordCount}/{stage.Equipment.EquippedCount}";
         controls.text = @"WASD  검 타고 이동
-좌클릭  발사  /  우클릭  회수
+좌클릭  발사  /  우클릭  내 검 회수 · 적 검 획득
 1  합체  /  3  교차 참격  /  4  검막
 5  이기어검 " +
             (stage.Swords.IsFollowingCursor ? "켜짐" : "꺼짐") + @"
-Tab  검 장비  /  Esc  일시 정지";
+Esc  일시 정지";
         waveTimer.text = !stage.Enemies.UsesFixedEncounters && stage.Enemies.Enemies.Count == 0 ?
             $"다음 적 무리까지 {stage.Enemies.RespawnTime:0.0}초" : "";
     }
@@ -102,7 +112,7 @@ Tab  검 장비  /  Esc  일시 정지";
 
     public void OpenInventory()
     {
-        if (titleScreen || stage == null || stage.Player.IsDead || paused)
+        if (!InventoryEnabled || titleScreen || stage == null || stage.Player.IsDead || paused)
             return;
         stage.Swords.PrepareInventory();
         Pause();
@@ -128,6 +138,7 @@ Tab  검 장비  /  Esc  일시 정지";
 
     public void StartCombat() => SceneRouter.Combat();
     public void StartMetroidvania() => SceneRouter.Metroidvania();
+    public void StartBoss() => SceneRouter.Boss();
     public void ReturnToTitle() => SceneRouter.Title();
     public void RestartStage() => SceneRouter.Restart();
 

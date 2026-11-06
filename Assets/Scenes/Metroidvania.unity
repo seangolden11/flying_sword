@@ -2517,7 +2517,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EnemyPlacement
   boss: 1
-  health: 180
+  health: 50
   scale: 2
 --- !u!4 &1604050368
 Transform:
