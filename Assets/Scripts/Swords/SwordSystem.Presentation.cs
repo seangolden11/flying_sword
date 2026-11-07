@@ -55,13 +55,18 @@ public sealed partial class SwordSystem
         sword.Trail.emitting = false;
         sword.Trail.Clear();
         sword.RestVelocity = Vector2.zero;
-        if (sword.BorrowedFrom != null) sword.BorrowedUsed = !sword.PermanentLoot;
+        if (sword.BorrowedFrom != null || sword.CapturedGiantSword) sword.BorrowedUsed = !sword.PermanentLoot;
         sword.Visual.localPosition = Vector3.zero;
         sword.Visual.localRotation = Quaternion.identity;
     }
 
     void AdvancePreparation(SwordInstance sword, float dt)
     {
+        if (sword.CapturedGiantSword)
+        {
+            AdvanceGiantPreparation(sword, dt);
+            return;
+        }
         sword.LaunchPreparation += dt*SwordSpeedMultiplier;
         float progress = Mathf.Clamp01(sword.LaunchPreparation/.16f);
         Vector2 home = RiderPosition+sword.LaunchOffset;

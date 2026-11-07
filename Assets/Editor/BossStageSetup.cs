@@ -18,17 +18,17 @@ public static class BossStageSetup
         {
             var manager = root.GetComponent<UIManager>();
             var title = root.transform.Find("Title");
-            var combat = title.Find("Combat stage").GetComponent<RectTransform>();
+            var tutorial = title.Find("Tutorial stage").GetComponent<RectTransform>();
             var metro = title.Find("Metroidvania stage").GetComponent<RectTransform>();
-            combat.anchoredPosition = new Vector2(0,80);
-            metro.anchoredPosition = new Vector2(0,-50);
+            tutorial.anchoredPosition = new Vector2(0,80);
+            metro.gameObject.SetActive(false);
             var boss = title.Find("Boss stage");
             if (!boss)
             {
-                boss = Object.Instantiate(combat.gameObject,title).transform;
+                boss = Object.Instantiate(tutorial.gameObject,title).transform;
                 boss.name = "Boss stage";
             }
-            boss.GetComponent<RectTransform>().anchoredPosition = new Vector2(0,-180);
+            boss.GetComponent<RectTransform>().anchoredPosition = new Vector2(0,-50);
             boss.GetComponentInChildren<Text>().text = "보스전";
             var button = boss.GetComponent<Button>();
             button.onClick = new Button.ButtonClickedEvent();

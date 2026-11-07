@@ -14,6 +14,7 @@ public sealed class SceneRouter : MonoBehaviour
     public static void Title() => Load("Title");
     public static void Combat() => StartStory("Combat");
     public static void Metroidvania() => StartStory("Metroidvania");
+    public static void Tutorial() => StartStory("Tutorial");
     public static void Boss() => StartStory("Boss");
 
     public static void Restart()

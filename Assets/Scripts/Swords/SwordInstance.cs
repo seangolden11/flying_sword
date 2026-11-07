@@ -9,7 +9,12 @@ public sealed class SwordInstance
     public EnemyState BorrowedFrom;
     public bool BorrowedUsed;
     public bool PermanentLoot;
-    public bool IsEnemyWeapon => BorrowedFrom != null || PermanentLoot;
+    public bool CapturedPortalSword;
+    public bool CapturedGiantSword;
+    public Vector2 GiantLaunchDirection;
+    public Vector2 GiantLaunchOrigin;
+    public EnemyBullet LastGiantIntercept;
+    public bool IsEnemyWeapon => BorrowedFrom != null || PermanentLoot || CapturedPortalSword || CapturedGiantSword;
     public bool PendingRemoval;
     public float CapturedTimeRemaining;
     public float CapturedShakeTime;

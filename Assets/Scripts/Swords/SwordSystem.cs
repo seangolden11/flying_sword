@@ -31,7 +31,7 @@ public sealed partial class SwordSystem : MonoBehaviour
     const float RecallDisplayTime = .45f;
     const float GuardRadius = 2.85f;
     const float MergeContactRadius = .24f;
-    static readonly Color PlantedBlade = new Color32(135, 154, 171, 255);
+    internal static readonly Color PlantedBlade = new Color32(135, 154, 171, 255);
     static readonly Color FusionBlade = new Color32(255, 209, 105, 255);
     static readonly Color ActiveBlade = new Color32(113, 248, 225, 255);
     [SerializeField] SwordView swordPrefab;
@@ -64,6 +64,7 @@ public sealed partial class SwordSystem : MonoBehaviour
     bool IsPlayerDead => player.IsDead;
     public bool IsFollowingCursor { get; private set; }
     public int ActiveSwordCount => orbiting.Count;
+    public bool HasPlantedSword => swords.Exists(sword => sword.State == SwordState.Planted);
     public SwordInstance MergingSword => mergeSword;
     public EnemyState LockedEnemy => lockedEnemy != null && lockedEnemy.Health > 0 ? lockedEnemy : null;
 
@@ -90,6 +91,7 @@ public sealed partial class SwordSystem : MonoBehaviour
 
     public void ResetSwords()
     {
+        ClearGiantWind();
         CancelLootClaim();
         ResetEnemyThefts();
         foreach (SwordInstance sword in swords)
@@ -150,6 +152,7 @@ public sealed partial class SwordSystem : MonoBehaviour
         instance.visual.localRotation = Quaternion.identity;
         instance.blade.color = SwordKindColor(kind);
         instance.groundMark.enabled = false;
+        instance.SetDroppedIndicator(false);
         instance.trail.emitting = false;
         instance.trail.Clear();
         instance.trail.time = .20f;
@@ -177,10 +180,17 @@ public sealed partial class SwordSystem : MonoBehaviour
         {
             EnemyBullet bullet = bullets[i];
             if (DistanceToSegmentSquared(Vector2.zero, bullet.Previous - player.PreviousPosition,
-                    (Vector2)bullet.Root.position - player.Position) > .25f * .25f)
+                    (Vector2)bullet.Root.position - player.Position) > Mathf.Pow(.25f + bullet.ContactRadius, 2))
                 continue;
-            enemySystem.RemoveBullet(i);
+            if (bullet.GiantChaseOwner == null)
+            {
+                enemySystem.RemoveBullet(i);
+                if (!bullet.IsPracticeShot) player.TakeHit();
+                continue;
+            }
+            int healthBeforeHit = player.Health;
             player.TakeHit();
+            if (player.Health < healthBeforeHit) enemySystem.RepelGiantSwordAfterPlayerHit();
         }
     }
 
@@ -213,6 +223,7 @@ public sealed partial class SwordSystem : MonoBehaviour
 
     int SwordDamage(SwordInstance sword)
     {
+        if (sword.CapturedGiantSword) return 5;
         if (sword.FusionSize == 0)
             return equipment.Definition(sword.Kind).damage;
         int damage = 0;
@@ -232,18 +243,13 @@ public sealed partial class SwordSystem : MonoBehaviour
         if (view == null || Time.deltaTime <= 0 || IsPlayerDead)
             return;
 
+        if (!enemySystem.IsSwordPortalActive)
+            foreach (SwordInstance sword in swords)
+                if (sword.CapturedPortalSword) ReturnBorrowedSword(sword);
         RemoveSpentBorrowedSwords();
         UpdateCapturedHoldTimers(dt);
-        var keyboard = Keyboard.current;
         recallTimer -= dt;
         recallArea.enabled = recallTimer > 0;
-
-        if (keyboard?.digit5Key.wasPressedThisFrame == true)
-        {
-            IsFollowingCursor = !IsFollowingCursor;
-            followHead = Vector2.zero;
-            followVelocity = Vector2.zero;
-        }
 
         foreach (SwordInstance sword in orbiting)
             sword.PreviousPosition = sword.Root.localPosition;
@@ -255,13 +261,6 @@ public sealed partial class SwordSystem : MonoBehaviour
         if (mergeSword != null)
             mergeSword.Root.localPosition += (Vector3)playerTravel;
 
-        bool mergeHeld = keyboard != null && (keyboard.digit1Key.isPressed || keyboard.digit1Key.wasPressedThisFrame);
-        if (mergeHeld && !merging)
-            BeginMerge();
-        if (!mergeHeld && merging)
-            FinishMerge();
-        merging = mergeHeld && mergeSword != null;
-        guarding = !merging && keyboard != null && keyboard.digit4Key.isPressed && orbiting.Count > 0;
         guardArea.transform.localPosition = RiderPosition;
         guardArea.enabled = guarding;
         launchCooldown = Mathf.Max(0, launchCooldown - dt);
@@ -276,16 +275,13 @@ public sealed partial class SwordSystem : MonoBehaviour
             bool launch = mouse.leftButton.wasPressedThisFrame ||
                 (mouse.leftButton.isPressed && launchCooldown <= 0);
             bool recall = mouse.rightButton.wasPressedThisFrame || mouse.rightButton.isPressed;
-            bool crossSlash = keyboard?.digit3Key.wasPressedThisFrame == true;
-            if (launch || recall || crossSlash)
+            if (launch || recall)
             {
                 if (launch && orbiting.Count > 0)
                 {
                     LaunchSword(cursor);
                     launchCooldown = LaunchInterval / SwordSpeedMultiplier;
                 }
-                if (crossSlash)
-                    CrossSlash(cursor);
                 if (recall)
                 {
                     RecallOwnSwords(cursor);
@@ -295,6 +291,7 @@ public sealed partial class SwordSystem : MonoBehaviour
         }
 
         UpdateHitBursts(dt);
+        UpdateGiantWind(dt);
         int swordsAtFrameStart = swords.Count;
         for (int i = 0; i < swordsAtFrameStart; i++)
         {
@@ -310,6 +307,7 @@ public sealed partial class SwordSystem : MonoBehaviour
             else if (sword.State == SwordState.Planted)
                 AdvancePlanted(sword, dt);
             sword.View.Refresh(sword.FusionSize);
+            sword.View.SetDroppedIndicator(sword.State == SwordState.Falling || sword.State == SwordState.Planted);
         }
 
         if (IsFollowingCursor && !guarding && !merging)
@@ -391,19 +389,20 @@ public sealed partial class SwordSystem : MonoBehaviour
             for (int j = bullets.Count - 1; j >= 0; j--)
             {
                 EnemyBullet bullet = bullets[j];
-                if (swordsOnly && !bullet.HomingSword)
+                if (bullet == sword.LastGiantIntercept) continue;
+                if (swordsOnly && !bullet.HomingSword && !bullet.IsPortalSword && bullet.GiantChaseOwner == null)
                     continue;
                 Vector2 bulletPosition = bullet.Root.localPosition;
                 bool crossed = DistanceToSegmentSquared(Vector2.zero,
                     sword.PreviousPosition - bullet.Previous, position - bulletPosition)
-                    <= InterceptContact * InterceptContact;
+                    <= Mathf.Pow(InterceptContact + bullet.ContactRadius, 2);
                 bool touchesBlade = DistanceToSegmentSquared(bulletPosition, bladeTip, bladeBase)
-                    <= InterceptContact * InterceptContact;
+                    <= Mathf.Pow(InterceptContact + bullet.ContactRadius, 2);
                 if (!crossed && !touchesBlade)
                     continue;
 
                 Vector2 knockback = BulletKnockback(bullet);
-                InterceptBullet(j);
+                InterceptBullet(j, sword);
                 sword.BlocksRemaining--;
                 if (sword.BlocksRemaining <= 0)
                 {
@@ -428,6 +427,13 @@ public sealed partial class SwordSystem : MonoBehaviour
     void LaunchSword(Vector2 cursor)
     {
         Vector2 target = ClampTarget(cursor);
+        SwordInstance giant = orbiting.Find(candidate => candidate.CapturedGiantSword);
+        if (giant != null)
+        {
+            orbiting.Remove(giant);
+            PrepareGiantLaunch(giant, cursor);
+            return;
+        }
         SwordInstance sword = orbiting.Find(candidate => candidate.IsEnemyWeapon) ?? orbiting[0];
         float nearest = ((Vector2)sword.Root.localPosition - target).sqrMagnitude;
         foreach (SwordInstance candidate in orbiting)
@@ -467,18 +473,19 @@ public sealed partial class SwordSystem : MonoBehaviour
         }
     }
 
-    void ShowSkillArea(Vector2 cursor, float radius, Color color)
+    void ShowSkillArea(Vector2 cursor, float radius, Color color, float duration = RecallDisplayTime)
     {
         recallArea.color = color;
         recallArea.transform.localScale = Vector2.one * (2 * radius);
         recallArea.transform.localPosition = cursor;
         recallArea.enabled = true;
-        recallTimer = RecallDisplayTime;
+        recallTimer = duration;
     }
 
     void RecallOwnSwords(Vector2 cursor)
     {
-        ShowSkillArea(cursor, RecallRadius, new Color32(96,237,255,230));
+        if (Mouse.current?.rightButton.isPressed == true)
+            ShowSkillArea(cursor, RecallRadius, new Color32(96,237,255,230), duration: 0);
         foreach (SwordInstance sword in swords)
         {
             if ((sword.BorrowedFrom != null && !sword.PermanentLoot) ||
@@ -492,14 +499,22 @@ public sealed partial class SwordSystem : MonoBehaviour
     void StealEnemySword(Vector2 cursor)
     {
         Vector2 worldCursor = transform.TransformPoint(cursor);
-        if (!enemySystem.TryStealSword(worldCursor, RecallRadius, out EnemyState owner, out Vector2 position))
+        if (!enemySystem.TryStealSword(worldCursor, RecallRadius, out EnemyState owner, out BulletView captured, out bool giant))
             return;
         SwordInstance sword = CreateSword("Captured sword");
         sword.BorrowedFrom = owner;
-        sword.PermanentLoot = false;
+        sword.CapturedGiantSword = giant;
+        sword.CapturedPortalSword = owner == null && !giant;
         sword.CapturedTimeRemaining = 3;
-        CopyCapturedAppearance(sword, owner.BossSword.View);
-        sword.Root.position = position;
+        CopyCapturedAppearance(sword, captured);
+        ApplyOwnedSwordColors(sword);
+        sword.Root.position = captured.transform.position;
+        if (giant)
+        {
+            sword.BlocksRemaining = 5;
+            captured.gameObject.SetActive(false);
+        }
+        else if (sword.CapturedPortalSword) enemySystem.ReleasePortalSword(captured);
         swords.Add(sword);
         BeginRecall(sword);
         equipment.NotifyChanged();
@@ -521,12 +536,13 @@ public sealed partial class SwordSystem : MonoBehaviour
 
     void BeginRecall(SwordInstance sword)
     {
-        if (sword.BorrowedFrom != null && sword.BorrowedUsed)
+        if ((sword.CapturedGiantSword || sword.BorrowedFrom != null) && sword.BorrowedUsed)
         {
             ReturnBorrowedSword(sword);
             return;
         }
         bool wasEnemyHeld = sword.State == SwordState.EnemyHeld;
+        sword.LastGiantIntercept = null;
         sword.State = SwordState.Returning;
         sword.ReturnPhase = 0;
         sword.ReturnSettleTime = 0;
@@ -536,9 +552,10 @@ public sealed partial class SwordSystem : MonoBehaviour
         sword.Trail.Clear();
         sword.Trail.time = .18f;
         sword.Trail.startWidth = .06f;
+        ApplyOwnedSwordColors(sword);
         sword.Trail.emitting = true;
         sword.CurveEnemy = null;
-        sword.Blade.color = sword.BorrowedFrom != null ? sword.CapturedBladeColor : sword.FusionSize > 0 ? FusionBlade : SwordKindColor(sword.Kind);
+        sword.Blade.color = ReadyBladeColor(sword);
         sword.GroundMark.enabled = false;
         if (wasEnemyHeld) equipment.NotifyChanged();
     }

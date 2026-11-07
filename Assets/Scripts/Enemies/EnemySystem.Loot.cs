@@ -11,9 +11,11 @@ public sealed partial class EnemySystem
         if (sword == null) return;
         bullets.Remove(sword);
         bossLoot.Add(owner);
+        if (owner.RecallCircle != null) Destroy(owner.RecallCircle);
         if (sword.State == BossSwordState.Stolen) return;
         sword.Root.position = owner.Position + Vector2.up*.6f;
         sword.State = BossSwordState.Falling;
+        sword.View.SetBladeInactive(true);
         sword.Velocity = Vector2.up*2;
         sword.View.gameObject.SetActive(true);
         sword.View.ResetTrail(false);
@@ -75,6 +77,7 @@ public sealed partial class EnemySystem
         if (sword.State != BossSwordState.Stolen) return;
         if (!bossLoot.Contains(owner)) bossLoot.Add(owner);
         sword.State = BossSwordState.Falling;
+        sword.View.SetBladeInactive(true);
         sword.Root.position = position;
         sword.Velocity = Vector2.zero;
         sword.View.gameObject.SetActive(true);

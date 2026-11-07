@@ -56,7 +56,7 @@ public static class ProjectAssetBuilder
         var legacy = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
         var router = new GameObject("Legacy scene redirect").AddComponent<SceneRouter>(); Set(router,"redirectToTitle",true);
         EditorSceneManager.SaveScene(legacy,"Assets/Scenes/SampleScene.unity");
-        EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene("Assets/Scenes/Title.unity",true),new EditorBuildSettingsScene("Assets/Scenes/Combat.unity",true),new EditorBuildSettingsScene("Assets/Scenes/Metroidvania.unity",true) };
+        EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene("Assets/Scenes/Title.unity",true),new EditorBuildSettingsScene("Assets/Scenes/Combat.unity",true),new EditorBuildSettingsScene("Assets/Scenes/Metroidvania.unity",true),new EditorBuildSettingsScene("Assets/Scenes/Tutorial.unity",true) };
         AssetDatabase.SaveAssets();
         StageExpansion.Apply();
         BossStageSetup.Apply();
@@ -169,11 +169,10 @@ public static class ProjectAssetBuilder
         var hp=Label("Player health",hud,"HP 10/10",30);hp.rectTransform.anchorMin=hp.rectTransform.anchorMax=new Vector2(0,1);hp.rectTransform.pivot=new Vector2(0,1);hp.rectTransform.anchoredPosition=new Vector2(36,-28);hp.rectTransform.sizeDelta=new Vector2(300,42);
         var fill=Bar(hp.transform,"Health bar",new Vector2(0,-33),new Vector2(250,9),Mint);
         var count=Label("Sword count",hud,"사용 가능 검",23);count.rectTransform.anchorMin=count.rectTransform.anchorMax=new Vector2(0,1);count.rectTransform.pivot=new Vector2(0,1);count.rectTransform.anchoredPosition=new Vector2(36,-95);count.rectTransform.sizeDelta=new Vector2(350,34);
-        var controls=Label("Controls",hud,"",21);controls.rectTransform.anchorMin=controls.rectTransform.anchorMax=Vector2.zero;controls.rectTransform.pivot=Vector2.zero;controls.rectTransform.anchoredPosition=new Vector2(36,30);controls.rectTransform.sizeDelta=new Vector2(470,160);
         var wave=Label("Wave timer",hud,"",26,TextAnchor.MiddleCenter);wave.rectTransform.anchorMin=wave.rectTransform.anchorMax=new Vector2(.5f,1);wave.rectTransform.anchoredPosition=new Vector2(0,-48);wave.rectTransform.sizeDelta=new Vector2(650,45);
         var bag=Button("Open inventory",hud,"검 장비  [Tab]",Vector2.zero,new Vector2(220,64),manager.OpenInventory).GetComponent<RectTransform>();bag.anchorMin=bag.anchorMax=new Vector2(1,1);bag.pivot=new Vector2(1,1);bag.anchoredPosition=new Vector2(-36,-28);
         var title=Overlay("Title",root.transform);var titleText=Label("Game title",title.transform,"FLYING SWORD",66,TextAnchor.MiddleCenter);Place(titleText.rectTransform,new Vector2(0,270),new Vector2(1000,100));titleText.color=Mint;var subtitle=Label("Subtitle",title.transform,"검을 타고, 궤적을 그리다",29,TextAnchor.MiddleCenter);Place(subtitle.rectTransform,new Vector2(0,175),new Vector2(900,60));
-        Button("Combat stage",title.transform,"검 전투",new Vector2(0,30),new Vector2(560,100),manager.StartCombat);Button("Metroidvania stage",title.transform,"메트로배니아",new Vector2(0,-100),new Vector2(560,100),manager.StartMetroidvania);
+        Button("Tutorial stage",title.transform,"튜토리얼",new Vector2(0,80),new Vector2(560,100),manager.StartTutorial);Button("Metroidvania stage",title.transform,"메트로배니아",new Vector2(0,-100),new Vector2(560,100),manager.StartMetroidvania).gameObject.SetActive(false);
         var hint=Label("Stage hint",title.transform,"스테이지 선택  ·  Esc로 일시 정지 및 타이틀 이동",22,TextAnchor.MiddleCenter);Place(hint.rectTransform,new Vector2(0,-260),new Vector2(1000,60));
         var pause=Overlay("Pause",root.transform);var ptitle=Label("Heading",pause.transform,"잠시 멈춤",46,TextAnchor.MiddleCenter);Place(ptitle.rectTransform,new Vector2(0,190),new Vector2(700,80));Button("Continue",pause.transform,"계속하기",new Vector2(0,40),new Vector2(500,90),manager.Resume);Button("Return to title",pause.transform,"타이틀로 돌아가기",new Vector2(0,-80),new Vector2(500,90),manager.ReturnToTitle);
         var defeat=Overlay("Defeat",root.transform);var dtitle=Label("Heading",defeat.transform,"검의 궤적이 멈췄습니다",44,TextAnchor.MiddleCenter);Place(dtitle.rectTransform,new Vector2(0,190),new Vector2(900,80));Button("Restart",defeat.transform,"다시 도전",new Vector2(0,40),new Vector2(500,90),manager.RestartStage);Button("Return to title",defeat.transform,"타이틀로 돌아가기",new Vector2(0,-80),new Vector2(500,90),manager.ReturnToTitle);
@@ -185,7 +184,7 @@ public static class ProjectAssetBuilder
         var summary=Label("Equipment summary",panel.transform,"",24,TextAnchor.MiddleCenter);summary.rectTransform.anchorMin=new Vector2(0,0);summary.rectTransform.anchorMax=new Vector2(1,.12f);summary.rectTransform.offsetMin=new Vector2(24,8);summary.rectTransform.offsetMax=new Vector2(-24,-8);
         var drag=Rect("Drag layer",inventory.transform);Fill(drag);
         Set(inventory,"equippedSection",equipped);Set(inventory,"storageSection",storage);Set(inventory,"slotPrefab",slot);Set(inventory,"dragLayer",drag);Set(inventory,"summary",summary);
-        Set(manager,"titlePanel",title);Set(manager,"hud",hud.gameObject);Set(manager,"pausePanel",pause);Set(manager,"defeatPanel",defeat);Set(manager,"inventory",inventory);Set(manager,"playerHealth",hp);Set(manager,"playerHealthFill",fill);Set(manager,"swordCount",count);Set(manager,"controls",controls);Set(manager,"waveTimer",wave);
+        Set(manager,"titlePanel",title);Set(manager,"hud",hud.gameObject);Set(manager,"pausePanel",pause);Set(manager,"defeatPanel",defeat);Set(manager,"inventory",inventory);Set(manager,"playerHealth",hp);Set(manager,"playerHealthFill",fill);Set(manager,"swordCount",count);Set(manager,"waveTimer",wave);
         title.SetActive(false);pause.SetActive(false);defeat.SetActive(false);inventory.gameObject.SetActive(false);
         return Save<UIManager>(root,"GameUI");
     }

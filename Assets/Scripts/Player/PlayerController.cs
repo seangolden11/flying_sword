@@ -7,6 +7,7 @@ public sealed class PlayerController : MonoBehaviour
     [SerializeField] SpriteRenderer hero;
     [SerializeField] TrailRenderer mountTrail;
     [SerializeField] float moveSpeed = 6;
+    public float MoveSpeed => moveSpeed;
     [SerializeField] Vector2 spawnPosition = new(-12, 0);
     StageGeometry geometry;
     CameraFollow cameraFollow;

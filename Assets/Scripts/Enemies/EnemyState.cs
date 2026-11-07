@@ -16,6 +16,9 @@ public sealed class EnemyState
     public float TheftCooldown;
     public float AreaAttackCooldown = 2;
     public int AreaAttacksInVolley;
+    public bool UsedSwordPortal;
+    public GameObject RecallCircle;
+    public bool RecallInFlight;
     public bool IsAware;
     public bool AlertedByDamage;
     public bool IsInRange;
@@ -40,8 +43,13 @@ public sealed class EnemyBullet
     public Vector2 Previous;
     public Vector2 Velocity;
     public bool HomingSword;
+    public bool IsPracticeShot;
+    public bool IsPortalSword;
+    public bool IsPortalCountershot;
     public float Lifetime;
     public EnemyState Owner;
+    public EnemyState GiantChaseOwner;
+    public float ContactRadius => GiantChaseOwner != null ? .85f : 0;
     public BossSwordState State;
     public float RecallTime;
 }

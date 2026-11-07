@@ -17,7 +17,6 @@ public sealed class UIManager : MonoBehaviour
     [SerializeField] Text playerHealth;
     [SerializeField] Image playerHealthFill;
     [SerializeField] Text swordCount;
-    [SerializeField] Text controls;
     [SerializeField] Text waveTimer;
     StageManager stage;
     BossHealthBar bossHealthBar;
@@ -50,6 +49,12 @@ public sealed class UIManager : MonoBehaviour
         stage = owner;
         if (bossHealthBar != null) bossHealthBar.Initialize(stage.Enemies);
         inventory.Initialize(stage.Equipment, stage.Swords);
+        if (stage.Tutorial != null)
+        {
+            waveTimer.rectTransform.anchoredPosition = new Vector2(0, -62);
+            waveTimer.rectTransform.sizeDelta = new Vector2(1050, 50);
+            waveTimer.fontSize = 30;
+        }
     }
 
     void Update()
@@ -91,14 +96,8 @@ public sealed class UIManager : MonoBehaviour
         playerHealth.text = $"HP {stage.Player.Health}/{PlayerController.MaxHealth}";
         playerHealthFill.fillAmount = (float)stage.Player.Health / PlayerController.MaxHealth;
         swordCount.text = $"사용 가능 검 {stage.Swords.ActiveSwordCount}/{stage.Equipment.EquippedCount}";
-        controls.text = @"WASD  검 타고 이동
-좌클릭  발사  /  우클릭  내 검 회수 · 적 검 획득
-1  합체  /  3  교차 참격  /  4  검막
-5  이기어검 " +
-            (stage.Swords.IsFollowingCursor ? "켜짐" : "꺼짐") + @"
-Esc  일시 정지";
-        waveTimer.text = !stage.Enemies.UsesFixedEncounters && stage.Enemies.Enemies.Count == 0 ?
-            $"다음 적 무리까지 {stage.Enemies.RespawnTime:0.0}초" : "";
+        waveTimer.text = stage.Tutorial?.Hint ?? (!stage.Enemies.UsesFixedEncounters && stage.Enemies.Enemies.Count == 0 ?
+            $"다음 적 무리까지 {stage.Enemies.RespawnTime:0.0}초" : "");
     }
 
     void Pause()
@@ -136,6 +135,7 @@ Esc  일시 정지";
         Time.timeScale = resumeTimeScale;
     }
 
+    public void StartTutorial() => SceneRouter.Tutorial();
     public void StartCombat() => SceneRouter.Combat();
     public void StartMetroidvania() => SceneRouter.Metroidvania();
     public void StartBoss() => SceneRouter.Boss();

@@ -36,8 +36,10 @@ public sealed partial class EnemySystem
             if (areaAttacks.Exists(attack => attack.Owner == owner)) return;
             owner.AreaAttacksInVolley = 0;
             owner.AreaAttackCooldown = AreaVolleyCooldown;
+            StartGiantChase(owner);
             return;
         }
+        if (giantSwordBoss == owner) return;
         owner.AreaAttackCooldown = Mathf.Max(0,owner.AreaAttackCooldown-dt);
         if (owner.AreaAttackCooldown > 0 || areaWarningPrefab == null || swordProjectilePrefab == null)
             return;

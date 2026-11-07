@@ -8,6 +8,7 @@ public sealed partial class EnemySystem
     {
         BulletView prefab = swordProjectilePrefab != null ? swordProjectilePrefab : bulletPrefab;
         BulletView swordView = swordProjectilePool.Count > 0 ? swordProjectilePool.Pop() : Instantiate(prefab, transform);
+        swordView.SetBladeInactive(false);
         swordView.ResetTrail(false);
         swordView.gameObject.SetActive(false);
         owner.BossSword = new EnemyBullet
@@ -40,6 +41,7 @@ public sealed partial class EnemySystem
     {
         sword.State = BossSwordState.Falling;
         sword.RecallTime = BossRecallDelay;
+        sword.View.SetBladeInactive(true);
         sword.Velocity = -sword.Velocity * .25f + Vector2.up * 2;
         sword.View.ResetTrail(false);
     }
@@ -65,13 +67,17 @@ public sealed partial class EnemySystem
             }
             if (sword.RecallTime > 0) return;
             sword.State = BossSwordState.Returning;
+            StartBossSwordRecall(owner);
+        }
+        if (!owner.RecallInFlight)
+        {
+            if (!AdvanceBossRecallCircle(owner.RecallCircle, sword.Root.position, dt)) return;
+            if (owner.RecallCircle != null) owner.RecallCircle.SetActive(false);
+            owner.RecallInFlight = true;
+            sword.View.SetBladeInactive(false);
             sword.View.ResetTrail(true);
         }
-        Vector2 target = owner.Position + Vector2.up * 2.4f;
-        Vector2 travel = target - (Vector2)sword.Root.position;
-        sword.Root.rotation = Quaternion.Euler(0,0,Vector2.SignedAngle(Vector2.down,travel));
-        sword.Root.position = Vector2.MoveTowards(sword.Root.position,target,12 * dt);
-        if (Vector2.Distance(sword.Root.position,target) > .05f) return;
+        if (!AdvanceBossRecallFlight(sword.View, BossSwordHome(owner), 12, dt)) return;
         sword.State = BossSwordState.Ready;
         sword.View.ResetTrail(false);
         sword.View.gameObject.SetActive(false);
@@ -79,10 +85,11 @@ public sealed partial class EnemySystem
         SetBossSwordAway(owner, false);
     }
 
-    public bool TryStealSword(Vector2 cursor, float radius, out EnemyState owner, out Vector2 position)
+    public bool TryStealSword(Vector2 cursor, float radius, out EnemyState owner, out BulletView captured, out bool giant)
     {
         owner = null;
-        position = Vector2.zero;
+        captured = null;
+        giant = false;
         float nearest = radius * radius;
         foreach (EnemyState enemy in enemies)
         {
@@ -93,7 +100,33 @@ public sealed partial class EnemySystem
             if (distance > nearest) continue;
             owner = enemy;
             nearest = distance;
-            position = sword.Root.position;
+            captured = sword.View;
+        }
+        int portalIndex = -1;
+        for (int i = 0; i < plantedPortalSwords.Count; i++)
+        {
+            BulletView sword = plantedPortalSwords[i];
+            float distance = ((Vector2)sword.transform.position - cursor).sqrMagnitude;
+            if (distance > nearest) continue;
+            nearest = distance;
+            portalIndex = i;
+        }
+        if (plantedGiantSword != null && !giantFalling &&
+            PlantedGiantDistanceSquared(cursor) <= nearest)
+        {
+            owner = null;
+            giantBlade.color = giantActiveColor;
+            captured = capturedGiantSword = plantedGiantSword;
+            plantedGiantSword = null;
+            giant = true;
+            return true;
+        }
+        if (portalIndex >= 0)
+        {
+            owner = null;
+            captured = plantedPortalSwords[portalIndex];
+            plantedPortalSwords.RemoveAt(portalIndex);
+            return true;
         }
         if (owner == null) return false;
         owner.BossSword.State = BossSwordState.Stolen;
@@ -112,10 +145,43 @@ public sealed partial class EnemySystem
         }
         EnemyBullet sword = owner.BossSword;
         if (sword.State != BossSwordState.Stolen) return;
-        sword.State = BossSwordState.Returning;
         sword.Root.position = position;
         sword.View.gameObject.SetActive(true);
-        sword.View.ResetTrail(true);
+        StartBossSwordRecall(owner);
+    }
+
+    void StartBossSwordRecall(EnemyState owner)
+    {
+        owner.BossSword.State = BossSwordState.Returning;
+        owner.RecallInFlight = false;
+        OpenBossRecallCircle(ref owner.RecallCircle, owner.Position);
+    }
+
+    void OpenBossRecallCircle(ref GameObject circle, Vector2 origin)
+    {
+        if (circle == null && recallCirclePrefab != null)
+            circle = Instantiate(recallCirclePrefab, transform);
+        if (circle == null) return;
+        circle.transform.position = origin;
+        circle.SetActive(true);
+    }
+
+    static bool AdvanceBossRecallCircle(GameObject circle, Vector2 target, float dt)
+    {
+        if (circle == null) return true;
+        Vector2 next = Vector2.MoveTowards(circle.transform.position, target, BossRecallCircleSpeed * dt);
+        circle.transform.position = next;
+        return next == target;
+    }
+
+    static bool AdvanceBossRecallFlight(BulletView sword, Vector2 target, float speed, float dt)
+    {
+        Vector2 from = sword.transform.position;
+        Vector2 next = Vector2.MoveTowards(from, target, speed * dt);
+        if (next != from)
+            sword.transform.rotation = Quaternion.Euler(0, 0, Vector2.SignedAngle(Vector2.down, next - from));
+        sword.transform.position = next;
+        return next == target;
     }
 
     static Vector2 BossSwordHome(EnemyState owner)
@@ -138,6 +204,8 @@ public sealed partial class EnemySystem
         bullets.Remove(sword);
         sword.View.ResetTrail(false);
         sword.View.gameObject.SetActive(false);
+        if (owner.RecallCircle != null) Destroy(owner.RecallCircle);
+        sword.View.SetBladeInactive(false);
         swordProjectilePool.Push(sword.View);
         owner.BossSword = null;
     }

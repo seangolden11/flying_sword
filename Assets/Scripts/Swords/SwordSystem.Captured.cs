@@ -37,7 +37,9 @@ public sealed partial class SwordSystem
     void ReturnBorrowedSword(SwordInstance sword)
     {
         if (sword.PendingRemoval) return;
-        enemySystem.ReturnStolenSword(sword.BorrowedFrom,sword.Root.position);
+        if (sword.CapturedGiantSword)
+            enemySystem.ReturnGiantSword(sword.Root.position);
+        else enemySystem.ReturnStolenSword(sword.BorrowedFrom,sword.Root.position);
         orbiting.Remove(sword);
         sword.State = SwordState.Stored;
         sword.PendingRemoval = true;
@@ -48,10 +50,11 @@ public sealed partial class SwordSystem
     {
         foreach (SwordInstance sword in swords)
         {
-            if (sword.BorrowedFrom == null || sword.PendingRemoval) continue;
+            if ((sword.BorrowedFrom == null && !sword.CapturedGiantSword) || sword.PendingRemoval) continue;
             sword.Visual.localPosition = Vector3.zero;
             sword.Visual.localRotation = Quaternion.identity;
-            if (!sword.PermanentLoot && sword.BorrowedFrom.Health <= 0)
+            bool ownerDefeated = sword.CapturedGiantSword ? !enemySystem.HasGiantSwordBoss : sword.BorrowedFrom.Health <= 0;
+            if (!sword.PermanentLoot && ownerDefeated)
             {
                 ReturnBorrowedSword(sword);
                 continue;
@@ -67,7 +70,8 @@ public sealed partial class SwordSystem
     {
         foreach (SwordInstance sword in swords)
         {
-            if (sword.BorrowedFrom == null || sword.PermanentLoot || sword.BorrowedUsed || sword.PendingRemoval) continue;
+            if ((sword.BorrowedFrom == null && !sword.CapturedGiantSword) ||
+                sword.PermanentLoot || sword.BorrowedUsed || sword.PendingRemoval) continue;
             float progress = 1-sword.CapturedTimeRemaining/3;
             float strength = progress * progress;
             float phase = sword.CapturedShakeTime * 90;

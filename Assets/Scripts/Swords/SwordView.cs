@@ -8,6 +8,10 @@ public sealed class SwordView : MonoBehaviour
     public SpriteRenderer groundMark;
     public TrailRenderer trail;
     public Text fusionCount;
+    DroppedSwordIndicator droppedIndicator;
+
+    public void SetDroppedIndicator(bool visible) =>
+        DroppedSwordIndicator.SetVisible(ref droppedIndicator, blade, visible);
 
     public void Refresh(int count)
     {
