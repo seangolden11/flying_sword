@@ -296,6 +296,7 @@ public sealed partial class SwordSystem : MonoBehaviour
         for (int i = 0; i < swordsAtFrameStart; i++)
         {
             SwordInstance sword = swords[i];
+            TryAutoRecall(sword, dt);
             if (sword.State == SwordState.Preparing)
                 AdvancePreparation(sword, dt);
             else if (sword.State == SwordState.Flying)
@@ -318,7 +319,6 @@ public sealed partial class SwordSystem : MonoBehaviour
             followWasActive = true;
             InterceptWithFormation();
             ApplyCapturedShake();
-            TickEnemyThefts(dt);
             RemoveArrivedBullets();
             return;
         }
@@ -374,7 +374,6 @@ public sealed partial class SwordSystem : MonoBehaviour
         else
             InterceptWithFormation(swordsOnly: true);
         ApplyCapturedShake();
-        TickEnemyThefts(dt);
         RemoveArrivedBullets();
     }
 
@@ -506,6 +505,7 @@ public sealed partial class SwordSystem : MonoBehaviour
         sword.CapturedGiantSword = giant;
         sword.CapturedPortalSword = owner == null && !giant;
         sword.CapturedTimeRemaining = 3;
+        sword.LaunchOnReturn = !sword.CapturedPortalSword;
         CopyCapturedAppearance(sword, captured);
         ApplyOwnedSwordColors(sword);
         sword.Root.position = captured.transform.position;
@@ -536,6 +536,7 @@ public sealed partial class SwordSystem : MonoBehaviour
 
     void BeginRecall(SwordInstance sword)
     {
+        sword.AutoRecallRemaining = 0;
         if ((sword.CapturedGiantSword || sword.BorrowedFrom != null) && sword.BorrowedUsed)
         {
             ReturnBorrowedSword(sword);

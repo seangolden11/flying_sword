@@ -16,6 +16,7 @@ public sealed class SwordInstance
     public EnemyBullet LastGiantIntercept;
     public bool IsEnemyWeapon => BorrowedFrom != null || PermanentLoot || CapturedPortalSword || CapturedGiantSword;
     public bool PendingRemoval;
+    public bool LaunchOnReturn;
     public float CapturedTimeRemaining;
     public float CapturedShakeTime;
     public Color CapturedBladeColor;
@@ -38,6 +39,7 @@ public sealed class SwordInstance
     public readonly List<SwordKind> FusedKinds = new();
     public int FusionSize;
     public float RecallCooldown;
+    public float AutoRecallRemaining;
     public int BlocksRemaining = 1;
     public float BlockRecoilTime;
     public Vector2 BlockRecoilVelocity;

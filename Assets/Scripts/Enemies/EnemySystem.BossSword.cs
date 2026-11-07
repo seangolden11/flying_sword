@@ -118,6 +118,7 @@ public sealed partial class EnemySystem
             giantBlade.color = giantActiveColor;
             captured = capturedGiantSword = plantedGiantSword;
             plantedGiantSword = null;
+            if (giantRecallCircle != null) giantRecallCircle.SetActive(false);
             giant = true;
             return true;
         }
@@ -166,10 +167,10 @@ public sealed partial class EnemySystem
         circle.SetActive(true);
     }
 
-    static bool AdvanceBossRecallCircle(GameObject circle, Vector2 target, float dt)
+    static bool AdvanceBossRecallCircle(GameObject circle, Vector2 target, float dt, float speed = BossRecallCircleSpeed)
     {
         if (circle == null) return true;
-        Vector2 next = Vector2.MoveTowards(circle.transform.position, target, BossRecallCircleSpeed * dt);
+        Vector2 next = Vector2.MoveTowards(circle.transform.position, target, speed * dt);
         circle.transform.position = next;
         return next == target;
     }

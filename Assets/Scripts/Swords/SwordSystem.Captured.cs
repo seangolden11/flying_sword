@@ -34,6 +34,28 @@ public sealed partial class SwordSystem
         }
     }
 
+    void LaunchCapturedSword(SwordInstance sword)
+    {
+        Vector2 origin = sword.Root.localPosition;
+        Vector2 target = origin + Vector2.right * formationFacing * GridSize.x;
+        float closestDistance = float.PositiveInfinity;
+        foreach (EnemyState enemy in enemySystem.Enemies)
+        {
+            if (enemy.Health <= 0) continue;
+
+            float distance = (enemy.Position - origin).sqrMagnitude;
+            if (distance >= closestDistance) continue;
+
+            closestDistance = distance;
+            target = enemy.Position;
+        }
+
+        if (sword.CapturedGiantSword)
+            PrepareGiantLaunch(sword, target);
+        else
+            PrepareLaunch(sword, ClampTarget(target));
+    }
+
     void ReturnBorrowedSword(SwordInstance sword)
     {
         if (sword.PendingRemoval) return;
@@ -59,7 +81,7 @@ public sealed partial class SwordSystem
                 ReturnBorrowedSword(sword);
                 continue;
             }
-            if (sword.PermanentLoot || sword.BorrowedUsed) continue;
+            if (sword.PermanentLoot || sword.BorrowedUsed || sword.LaunchOnReturn) continue;
             sword.CapturedShakeTime += dt;
             sword.CapturedTimeRemaining = Mathf.Max(0,sword.CapturedTimeRemaining-dt);
             if (sword.CapturedTimeRemaining <= 0) ReturnBorrowedSword(sword);

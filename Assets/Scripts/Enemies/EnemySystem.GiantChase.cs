@@ -8,7 +8,10 @@ public sealed partial class EnemySystem
     const float GiantChaseSpeedMultiplier = 1.32f;
     const float GiantRecoilSpeed = 44;
     const float GiantRecoilDeceleration = 176;
+    // In the boss arena, the floor is about 6.8 units below the spawn.
+    const float GiantRecallCircleSpeed = 4f;
     EnemyBullet chasingGiantSword;
+    GameObject giantRecallCircle;
     BulletView plantedGiantSword;
     BulletView capturedGiantSword;
     EnemyState giantSwordBoss;
@@ -127,12 +130,15 @@ public sealed partial class EnemySystem
         giantReturning = true;
         capturedGiantSword.transform.position = position;
         capturedGiantSword.gameObject.SetActive(true);
+        giantBlade.color = giantActiveColor;
+        capturedGiantSword.SetDroppedIndicator(false);
         capturedGiantSword.ResetTrail(true);
         if (capturedGiantSword.trail != null) capturedGiantSword.trail.startWidth = .65f;
     }
 
     void ResetGiantReward()
     {
+        if (giantRecallCircle != null) giantRecallCircle.SetActive(false);
         if (plantedGiantSword != null) Destroy(plantedGiantSword.gameObject);
         if (capturedGiantSword != null)
         {
@@ -156,6 +162,19 @@ public sealed partial class EnemySystem
             return;
         }
         TickGiantFall(dt);
+        if (giantFalling || plantedGiantSword == null) return;
+
+        if (giantRecallCircle == null || !giantRecallCircle.activeSelf)
+            OpenBossRecallCircle(ref giantRecallCircle, giantSwordBoss.Position);
+
+        Vector2 target = plantedGiantSword.transform.position;
+        if (!AdvanceBossRecallCircle(giantRecallCircle, target, dt, GiantRecallCircleSpeed))
+            return;
+
+        if (giantRecallCircle != null) giantRecallCircle.SetActive(false);
+        capturedGiantSword = plantedGiantSword;
+        plantedGiantSword = null;
+        ReturnGiantSword(target);
     }
 
     void TickGiantFall(float dt)

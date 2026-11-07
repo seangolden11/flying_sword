@@ -3,6 +3,8 @@ using UnityEngine;
 
 public sealed partial class SwordSystem
 {
+    const float OwnedSwordRecallDelay = 1f;
+
     void BeginFlight(SwordInstance sword, Vector2 target)
     {
         if (sword.IsEnemyWeapon)
@@ -11,7 +13,10 @@ public sealed partial class SwordSystem
             sword.Visual.localPosition = Vector3.zero;
             sword.Visual.localRotation = Quaternion.identity;
         }
+        sword.LaunchOnReturn = false;
         sword.State = SwordState.Flying;
+        sword.AutoRecallRemaining = !sword.IsEnemyWeapon || sword.PermanentLoot
+            ? OwnedSwordRecallDelay : 0f;
         sword.LastGiantIntercept = null;
         sword.Blade.color = ReadyBladeColor(sword);
         sword.CurveEnemy = null;
@@ -398,6 +403,19 @@ public sealed partial class SwordSystem
         SetPlanted(sword, direction, normal);
     }
 
+    bool TryAutoRecall(SwordInstance sword, float dt)
+    {
+        if (sword.AutoRecallRemaining <= 0 ||
+            (sword.State != SwordState.Flying && sword.State != SwordState.Falling && sword.State != SwordState.Planted))
+            return false;
+
+        sword.AutoRecallRemaining -= dt;
+        if (sword.AutoRecallRemaining > 0) return false;
+
+        BeginRecall(sword);
+        return true;
+    }
+
     void AdvancePlanted(SwordInstance sword, float dt)
     {
         if (sword.BorrowedFrom == null || sword.PermanentLoot)
@@ -445,6 +463,12 @@ public sealed partial class SwordSystem
             sword.Trail.emitting = false;
             return;
         }
+        if (sword.LaunchOnReturn)
+        {
+            LaunchCapturedSword(sword);
+            return;
+        }
+
         foreach (SwordInstance returned in SeparateSword(sword))
         {
             returned.State = SwordState.Orbiting;

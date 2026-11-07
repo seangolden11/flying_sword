@@ -35,7 +35,10 @@ public static class GameRegressionChecks
                 Check(geometry.ClipTerrain(new Vector2(0,0),new Vector2(0,-20),Vector2.zero,out var floor),"Terrain sweep");
                 Check(floor.y>-7,"Floor contact position");
                 var s=eq.Inventory.First();s.Root.localPosition=new Vector2(-12,0);Call(swords,"BeginFlight",s,new Vector2(-10,0));Call(swords,"AdvanceFlight",s,1f);Check(s.State==SwordState.Falling,"Arrived sword falls");
-                s.Root.localPosition=new Vector2(-12,-5);s.FallVelocity=Vector2.zero;Call(swords,"AdvanceFall",s,1f);Check(s.State==SwordState.Planted,"Falling sword plants");Call(swords,"AdvancePlanted",s,3.1f);Check(s.State==SwordState.Returning,"Planted sword auto recall");
+                s.Root.localPosition=new Vector2(-12,-5);s.FallVelocity=Vector2.zero;Call(swords,"AdvanceFall",s,1f);Check(s.State==SwordState.Planted,"Falling sword plants");Check(!(bool)Call(swords,"TryAutoRecall",s,.5f),"Planted sword waits for launch timer");Check((bool)Call(swords,"TryAutoRecall",s,.5f)&&s.State==SwordState.Returning,"Planted sword recalls one second after launch");
+                Call(swords,"BeginFlight",s,new Vector2(-10,0));
+                Check(!(bool)Call(swords,"TryAutoRecall",s,.75f)&&s.State==SwordState.Flying,"Flying sword waits for launch timer");
+                Check((bool)Call(swords,"TryAutoRecall",s,.25f)&&s.State==SwordState.Returning,"Flying sword recalls without landing");
                 var fused=eq.Inventory.First(x=>x.Kind==SwordKind.LockOn);fused.FusionSize=3;fused.FusedKinds.AddRange(new[]{SwordKind.LockOn,SwordKind.Speed,SwordKind.Recall});
                 Check((int)Call(swords,"SwordDamage",fused)==3,"Fusion damage");Check((bool)Call(swords,"SwordMarksTarget",fused),"Fusion retains mark");var parts=(List<SwordInstance>)Call(swords,"SeparateSword",fused);Check(parts.Select(x=>x.Kind).SequenceEqual(new[]{SwordKind.LockOn,SwordKind.Speed,SwordKind.Recall}),"Fusion restores types");Check(parts.All(x=>x.BlocksRemaining==1&&x.FusionSize==0),"Split resets block count");
                 enemies.Tick(5.1f);Check(enemies.Enemies.Count==3,"Wave has three enemies");Check(enemies.Enemies.All(x=>x.Health==30),"Enemy HP");Check(enemies.Enemies.All(x=>!geometry.OverlapsTerrain(x.Position,Vector2.one*.65f)),"Spawn outside terrain");
