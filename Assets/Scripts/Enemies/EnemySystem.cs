@@ -54,7 +54,7 @@ public sealed partial class EnemySystem : MonoBehaviour
         PracticeShotIntercepted = false;
         ResetAreaAttacks();
         ResetGiantReward();
-        EndSwordPortal();
+        EndSwordPortal(reset: true);
         ResetBossLoot();
         foreach (EnemyState enemy in enemies)
         {
@@ -313,7 +313,7 @@ public sealed partial class EnemySystem : MonoBehaviour
 
     public void Damage(EnemyState enemy, int damage)
     {
-        if (enemy.Health <= 0 || enemy == swordPortalOwner || damage <= 0)
+        if (enemy.Health <= 0 || (enemy == swordPortalOwner && PortalBossInvulnerable) || damage <= 0)
             return;
         if (!enemy.AlertedByDamage)
             enemy.BasicTimer = 0;
@@ -330,6 +330,7 @@ public sealed partial class EnemySystem : MonoBehaviour
         enemy.HitTimer = .22f;
         if (enemy.Health > 0)
             return;
+        if (enemy.UsedSwordPortal) EndSwordPortal(reset: true);
         if (enemy.IsBoss) DropBossLoot(enemy);
         else ReleaseBossSword(enemy);
         enemy.View.gameObject.SetActive(false);

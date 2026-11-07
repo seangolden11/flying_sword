@@ -16,6 +16,8 @@ public sealed partial class SwordSystem
     readonly List<EnemyTheft> enemyThefts = new();
     readonly Stack<GameObject> theftMarkerPool = new();
     GameObject theftMarkerPrefab;
+    const float TheftApproachSpeed = 5;
+    const float TheftMarkerDiameter = 2 * RecallRadius * .9f;
 
     void ResetEnemyThefts()
     {
@@ -40,7 +42,7 @@ public sealed partial class SwordSystem
         {
             EnemyTheft attempt = enemyThefts[i];
             SwordInstance sword = attempt.Sword;
-            bool valid = attempt.Enemy.Health > 0 && !IsBossTheftPaused(attempt.Enemy) &&
+            bool valid = attempt.Enemy.Health > 0 && !enemySystem.IsSwordPortalActive &&
                 sword.State == (attempt.Projectile != null ? SwordState.EnemyFlying : attempt.Claimed ? SwordState.EnemyHeld : SwordState.Planted);
             if (!valid || (attempt.Projectile != null && attempt.Projectile.Spent))
             {
@@ -58,7 +60,8 @@ public sealed partial class SwordSystem
             if (attempt.Projectile != null) continue;
             Vector2 target = attempt.Claimed ? attempt.Enemy.Position + Vector2.up * 1.2f : (Vector2)sword.Root.position;
             Vector2 origin = attempt.Claimed ? sword.Root.position : attempt.Marker.transform.position;
-            float speed = attempt.Claimed ? 15 : attempt.Enemy.IsBoss ? EnemySystem.BossRecallCircleSpeed : 10;
+            float approachSpeed = attempt.Enemy.IsBoss ? EnemySystem.BossRecallCircleSpeed * .5f : TheftApproachSpeed;
+            float speed = attempt.Claimed ? 15 : approachSpeed;
             Vector2 next = Vector2.MoveTowards(origin, target, speed * dt);
             if (!attempt.Claimed) attempt.Marker.transform.position = next;
             if (attempt.Claimed)
@@ -90,7 +93,7 @@ public sealed partial class SwordSystem
         foreach (EnemyState enemy in enemySystem.Enemies)
         {
             enemy.TheftCooldown = Mathf.Max(0,enemy.TheftCooldown-dt);
-            if (IsBossTheftPaused(enemy) || !enemy.IsAware || enemy.TheftCooldown > 0 ||
+            if (enemySystem.IsSwordPortalActive || !enemy.IsAware || enemy.TheftCooldown > 0 ||
                 enemyThefts.Exists(attempt => attempt.Enemy == enemy))
                 continue;
             SwordInstance target = null;
@@ -107,10 +110,10 @@ public sealed partial class SwordSystem
             if (target == null) continue;
             GameObject marker = theftMarkerPool.Count > 0 ? theftMarkerPool.Pop() : Instantiate(theftMarkerPrefab,transform);
             marker.transform.position = enemy.Position;
+            marker.transform.Find("Visual").localScale = new Vector3(TheftMarkerDiameter, TheftMarkerDiameter, 1);
             marker.SetActive(true);
             enemyThefts.Add(new EnemyTheft { Enemy = enemy, Sword = target, Marker = marker });
         }
     }
-    bool IsBossTheftPaused(EnemyState enemy) => enemy.IsBoss && enemySystem.IsSwordPortalActive;
 
 }

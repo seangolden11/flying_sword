@@ -243,7 +243,7 @@ public sealed partial class SwordSystem : MonoBehaviour
         if (view == null || Time.deltaTime <= 0 || IsPlayerDead)
             return;
 
-        if (!enemySystem.IsSwordPortalActive)
+        if (!enemySystem.HasPortalSwordSource)
             foreach (SwordInstance sword in swords)
                 if (sword.CapturedPortalSword) ReturnBorrowedSword(sword);
         RemoveSpentBorrowedSwords();
@@ -296,6 +296,8 @@ public sealed partial class SwordSystem : MonoBehaviour
         for (int i = 0; i < swordsAtFrameStart; i++)
         {
             SwordInstance sword = swords[i];
+            if (sword.CapturedPortalSword && !enemySystem.HasPortalSwordSource)
+                ReturnBorrowedSword(sword);
             if (sword.State == SwordState.Preparing)
                 AdvancePreparation(sword, dt);
             else if (sword.State == SwordState.Flying)

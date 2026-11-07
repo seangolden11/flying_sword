@@ -22,6 +22,7 @@ public sealed partial class EnemySystem
     readonly List<BulletView> returningPortalSwords = new();
     readonly Queue<BulletView> queuedPortalSwords = new();
     bool recallingPortalSwords;
+    bool portalVolleyStarted;
     float portalCountershotTimer;
     int portalCountershotsRemaining;
     LineRenderer swordPortal;
@@ -31,15 +32,19 @@ public sealed partial class EnemySystem
     float portalEndTimeRemaining;
     float[] portalLaneTimers;
     float portalHalfWidth;
+    public bool HasPortalSwordSource { get; private set; }
     public bool IsSwordPortalActive => swordPortalOwner != null;
+    bool PortalBossInvulnerable => !recallingPortalSwords || portalCountershotsRemaining > 0;
 
     void StartSwordPortal(EnemyState owner)
     {
         owner.UsedSwordPortal = true;
+        HasPortalSwordSource = true;
         swordPortalOwner = owner;
         portalTime = PortalDuration;
         portalEndTimeRemaining = PortalEndDelay;
         recallingPortalSwords = false;
+        portalVolleyStarted = false;
         portalHalfWidth = geometry.Size.x * .5f - .5f;
         int lanes = Mathf.Max(1, Mathf.CeilToInt(2 * portalHalfWidth / PortalLaneWidth));
         portalLaneTimers = new float[lanes];
@@ -96,7 +101,9 @@ public sealed partial class EnemySystem
                 OpenBossRecallCircle(ref portalRecallCircle, home);
         }
 
-        if (plantedPortalSwords.Count > 0)
+        bool canRecall = !portalVolleyStarted && plantedPortalSwords.Count > 0 &&
+            queuedPortalSwords.Count + returningPortalSwords.Count < PortalCountershotCount;
+        if (canRecall)
         {
             if (!plantedPortalSwords.Contains(portalRecallTarget))
                 portalRecallTarget = FindNearestPortalSword(portalRecallCircle != null ? portalRecallCircle.transform.position : home);
@@ -120,18 +127,20 @@ public sealed partial class EnemySystem
             returningPortalSwords.RemoveAt(i);
             queuedPortalSwords.Enqueue(sword);
         }
-        if (plantedPortalSwords.Count > 0 || returningPortalSwords.Count > 0) return;
+        if (canRecall || returningPortalSwords.Count > 0) return;
 
+        portalVolleyStarted = true;
         portalCountershotTimer -= dt;
-        if (portalCountershotTimer > 0) return;
+        if (portalCountershotsRemaining > 0 && portalCountershotTimer > 0) return;
         if (portalCountershotsRemaining > 0)
         {
             BulletView sword = queuedPortalSwords.Count > 0 ? queuedPortalSwords.Dequeue() : GetPortalSword();
             FirePortalCountershot(sword, home);
             portalCountershotsRemaining--;
+            if (portalCountershotsRemaining == 0) portalShield.enabled = false;
             portalCountershotTimer += PortalCountershotInterval;
         }
-        if (portalCountershotsRemaining > 0 || bullets.Exists(bullet => bullet.IsPortalSword)) return;
+        if (portalCountershotsRemaining > 0) return;
         portalEndTimeRemaining -= dt;
         if (portalEndTimeRemaining <= 0)
             EndSwordPortal();
@@ -206,28 +215,32 @@ public sealed partial class EnemySystem
         BulletView sword = bullets[index].View;
         bullets.RemoveAt(index);
         sword.ResetTrail(false);
-        sword.SetDroppedIndicator(true);
         plantedPortalSwords.Add(sword);
+        sword.SetDroppedIndicator(true);
     }
 
     public void ReleasePortalSword(BulletView sword)
     {
-        sword.SetDroppedIndicator(false);
         sword.gameObject.SetActive(false);
         swordProjectilePool.Push(sword);
+        sword.SetDroppedIndicator(false);
     }
 
-    void EndSwordPortal()
+    void EndSwordPortal(bool reset = false)
     {
         swordPortalOwner = null;
         portalRecallTarget = null;
         if (portalRecallCircle != null) portalRecallCircle.SetActive(false);
         if (swordPortal != null) swordPortal.enabled = portalShield.enabled = false;
-        for (int i = bullets.Count - 1; i >= 0; i--)
-            if (bullets[i].IsPortalSword) RemoveBullet(i);
-        foreach (BulletView sword in plantedPortalSwords)
-            ReleasePortalSword(sword);
-        plantedPortalSwords.Clear();
+        if (reset)
+        {
+            HasPortalSwordSource = false;
+            for (int i = bullets.Count - 1; i >= 0; i--)
+                if (bullets[i].IsPortalSword) RemoveBullet(i);
+            foreach (BulletView sword in plantedPortalSwords)
+                ReleasePortalSword(sword);
+            plantedPortalSwords.Clear();
+        }
         foreach (BulletView sword in returningPortalSwords)
             ReleasePortalSword(sword);
         returningPortalSwords.Clear();
