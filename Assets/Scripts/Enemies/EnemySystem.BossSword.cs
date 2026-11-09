@@ -15,6 +15,7 @@ public sealed partial class EnemySystem
         {
             View = swordView, Owner = owner, HomingSword = true, State = BossSwordState.Ready
         };
+        if (owner.SwordVisual != null) owner.SwordVisual.BindSword(swordView);
         SetBossSwordAway(owner, false);
     }
 
@@ -80,7 +81,6 @@ public sealed partial class EnemySystem
         if (!AdvanceBossRecallFlight(sword.View, BossSwordHome(owner), 12, dt)) return;
         sword.State = BossSwordState.Ready;
         sword.View.ResetTrail(false);
-        sword.View.gameObject.SetActive(false);
         owner.BasicTimer = 1.1f;
         SetBossSwordAway(owner, false);
     }
