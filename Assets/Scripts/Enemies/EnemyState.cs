@@ -7,18 +7,21 @@ public sealed class EnemyState
     public int Health;
     public int MaxHealth;
     public bool IsBoss;
-    public EnemyBullet BossSword;
+    public bool IsPractice;
+    public bool PracticeSwordIntercepted;
+    public bool PracticeSwordRelaunched;
+    public EnemyBullet[] BasicSwords;
+    public EnemyBullet BossSword => BasicSwords?[0];
     public float BurstTimer;
     public float ShotTimer;
     public float BasicTimer;
+    public int BasicCurveSlot;
     public int ShotsRemaining;
     public float HitTimer;
     public float TheftCooldown;
     public float AreaAttackCooldown = 2;
     public int AreaAttacksInVolley;
     public bool UsedSwordPortal;
-    public GameObject RecallCircle;
-    public bool RecallInFlight;
     public bool IsAware;
     public bool AlertedByDamage;
     public bool IsInRange;
@@ -52,4 +55,8 @@ public sealed class EnemyBullet
     public float ContactRadius => GiantChaseOwner != null ? .85f : 0;
     public BossSwordState State;
     public float RecallTime;
+    public SwordConvergence Convergence;
+    public int BossSlot;
+    public GameObject RecallCircle;
+    public bool RecallInFlight;
 }

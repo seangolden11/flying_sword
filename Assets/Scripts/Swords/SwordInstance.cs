@@ -1,12 +1,13 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public enum SwordState { Orbiting, Flying, Falling, Planted, Returning, Stored, EnemyHeld, EnemyFlying, Preparing }
+public enum SwordState { Orbiting, Flying, Falling, Planted, Returning, Stored, EnemyHeld, EnemyFlying, Preparing, OrderAttack }
 
 public sealed class SwordInstance
 {
     public SwordView View;
     public EnemyState BorrowedFrom;
+    public EnemyBullet StolenBasicSword;
     public bool BorrowedUsed;
     public bool PermanentLoot;
     public bool CapturedPortalSword;
@@ -16,8 +17,6 @@ public sealed class SwordInstance
     public EnemyBullet LastGiantIntercept;
     public bool IsEnemyWeapon => BorrowedFrom != null || PermanentLoot || CapturedPortalSword || CapturedGiantSword;
     public bool PendingRemoval;
-    public float CapturedTimeRemaining;
-    public float CapturedShakeTime;
     public Color CapturedBladeColor;
     public Transform Root => View.transform;
     public Transform Visual => View.visual;
@@ -25,7 +24,15 @@ public sealed class SwordInstance
     public SpriteRenderer Blade => View.blade;
     public SpriteRenderer GroundMark => View.groundMark;
     public Vector2 Target;
+    public SwordConvergence Convergence;
+    public EnemyState LaunchEnemy;
+    public int OrderSlot = -1;
+    public bool IsOrderSword => OrderSlot >= 0;
+    public float OrderElapsed;
+    public bool OrderContact;
+    public Vector2 PlantedNormal;
     public Vector2 RestVelocity;
+    public EnemyBullet TargetProjectile;
     public Vector2 LaunchOffset;
     public float LaunchPreparation;
     public int ReturnPhase;

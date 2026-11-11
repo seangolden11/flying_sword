@@ -3,6 +3,9 @@ using UnityEngine;
 
 public sealed partial class SwordSystem
 {
+    const int ApproachDirections = 8;
+    int nextCurveSlot;
+
     void BeginFlight(SwordInstance sword, Vector2 target)
     {
         if (sword.IsEnemyWeapon)
@@ -11,7 +14,17 @@ public sealed partial class SwordSystem
             sword.Visual.localPosition = Vector3.zero;
             sword.Visual.localRotation = Quaternion.identity;
         }
+        if (!sword.CapturedGiantSword)
+        {
+            float duration = Mathf.Clamp(Vector2.Distance(RiderPosition, target) / (LaunchSpeed * SwordSpeedMultiplier),
+                .23f, .8f);
+            sword.Convergence = SwordConvergence.Begin(sword.Root.localPosition, target,
+                nextCurveSlot, ApproachDirections, duration);
+            nextCurveSlot = (nextCurveSlot + 1) % ApproachDirections;
+        }
         sword.State = SwordState.Flying;
+        if (sword.BorrowedFrom is { IsPractice: true } instructor)
+            instructor.PracticeSwordRelaunched = true;
         sword.LastGiantIntercept = null;
         sword.Blade.color = ReadyBladeColor(sword);
         sword.CurveEnemy = null;
@@ -21,7 +34,8 @@ public sealed partial class SwordSystem
         sword.ContactEnemy = null;
         sword.Trail.time = .20f;
         sword.Trail.startWidth = .065f;
-        Color trailColor = SwordKindColor(sword.Kind);
+        Color trailColor = sword.IsOrderSword ? OrderBladeColor :
+            sword.IsEnemyWeapon ? sword.CapturedBladeColor : SwordKindColor(sword.Kind);
         sword.Trail.startColor = new Color(trailColor.r,trailColor.g,trailColor.b,.65f);
         sword.Trail.endColor = new Color(trailColor.r,trailColor.g,trailColor.b,0);
         sword.Trail.emitting = true;
@@ -29,6 +43,7 @@ public sealed partial class SwordSystem
         SetFusionSize(sword, orbitVisual: false);
     }
 
+    const int GiantSwordBaseDamage = 5;
     const float GiantDrawTime = .30f;
     const float GiantHoldTime = .18f;
     const float GiantDrawDistance = 1.25f;
@@ -49,7 +64,7 @@ public sealed partial class SwordSystem
         sword.GiantLaunchOrigin = sword.Root.localPosition;
         Vector2 direction = cursor - sword.GiantLaunchOrigin;
         sword.GiantLaunchDirection = direction.sqrMagnitude > .001f
-            ? direction.normalized : Vector2.right * formationFacing;
+            ? direction.normalized : RestDirection;
     }
 
     void AdvanceGiantPreparation(SwordInstance sword, float dt)
@@ -57,6 +72,13 @@ public sealed partial class SwordSystem
         sword.LaunchPreparation += dt;
         float progress = Mathf.Clamp01(sword.LaunchPreparation / GiantDrawTime);
         Vector2 home = sword.GiantLaunchOrigin;
+        EnemyState boss = enemySystem.GiantSwordBoss;
+        if (boss is { Health: > 0 })
+        {
+            sword.Target = transform.InverseTransformPoint(boss.Position);
+            Vector2 aim = sword.Target - home;
+            if (aim.sqrMagnitude > .001f) sword.GiantLaunchDirection = aim.normalized;
+        }
         Vector2 drawn = home - sword.GiantLaunchDirection * (GiantDrawDistance * Mathf.SmoothStep(0, 1, progress));
         stage.ClipTerrain(home, drawn, Vector2.zero, out drawn);
         sword.Root.localPosition = drawn;
@@ -88,7 +110,7 @@ public sealed partial class SwordSystem
         bool terrainHit = stage.ClipTerrain(position, next, Vector2.zero, out next);
         sword.Root.localPosition = next;
         EmitGiantWind(position, next);
-        HitEnemiesWithGiantSword(sword, position, next);
+        HitEnemiesWithGiantSword(position, next);
         while (!sword.PendingRemoval && TryHitBullet(sword, position, next))
         {
         }
@@ -97,7 +119,7 @@ public sealed partial class SwordSystem
             ReturnBorrowedSword(sword);
     }
 
-    void HitEnemiesWithGiantSword(SwordInstance sword, Vector2 from, Vector2 to)
+    void HitEnemiesWithGiantSword(Vector2 from, Vector2 to)
     {
         var enemies = enemySystem.Enemies;
         for (int i = enemies.Count - 1; i >= 0; i--)
@@ -106,7 +128,10 @@ public sealed partial class SwordSystem
             float radius = EnemyHitRadius * Mathf.Abs(enemy.View.transform.lossyScale.x);
             if (DistanceToSegmentSquared(enemy.Position, from, to) > radius * radius ||
                 !giantFlightHits.Add(enemy)) continue;
-            enemySystem.Damage(enemy, SwordDamage(sword));
+            int damage = enemy.IsBoss
+                ? Mathf.Max(1, Mathf.RoundToInt(GiantSwordBaseDamage * (float)enemy.MaxHealth / EnemySystem.BossMaxHealth))
+                : GiantSwordBaseDamage;
+            enemySystem.Damage(enemy, damage);
             if (enemy.Health == 0 && lockedEnemy == enemy) lockedEnemy = null;
             SpawnHitBurst(enemy.Position, new Color(.75f, 1, .94f));
         }
@@ -183,6 +208,44 @@ public sealed partial class SwordSystem
             if (arc != null) arc.enabled = false;
     }
 
+    bool TryGetProjectileTarget(SwordInstance sword, out Vector2 position)
+    {
+        EnemyBullet giant = enemySystem.ChasingGiantSword;
+        if (giant != null && IsActiveProjectile(giant))
+        {
+            sword.TargetProjectile = giant;
+            position = giant.Root.localPosition;
+            return true;
+        }
+
+        EnemyBullet target = sword.TargetProjectile;
+        if (target != null && IsActiveProjectile(target))
+        {
+            foreach (EnemyBullet bullet in bullets)
+            {
+                if (bullet != target)
+                    continue;
+
+                position = bullet.Root.localPosition;
+                return true;
+            }
+        }
+
+        sword.TargetProjectile = null;
+        position = default;
+        return false;
+    }
+
+    Vector2 InterceptAim(EnemyBullet bullet, Vector2 from, float speed, float dt)
+    {
+        Vector2 current = bullet.Root.localPosition;
+        Vector2 previous = transform.InverseTransformPoint(bullet.Previous);
+        Vector2 velocity = (current - previous) / dt;
+        float lead = Mathf.Min(InterceptLeadTime, Vector2.Distance(from, current) / (speed + velocity.magnitude));
+        Vector2 predicted = current + velocity * lead;
+        return stage.ClipTerrain(from, predicted, Vector2.zero, out _) ? current : predicted;
+    }
+
     void AdvanceFlight(SwordInstance sword, float dt)
     {
         if (sword.CapturedGiantSword)
@@ -191,32 +254,61 @@ public sealed partial class SwordSystem
             return;
         }
         Vector2 position = sword.Root.localPosition;
-        bool chasingEnemy = lockedEnemy != null && lockedEnemy.Health > 0;
-        Vector2 destination = chasingEnemy ? lockedEnemy.Position : sword.Target;
-        float nearest = InterceptRange * InterceptRange;
-        bool chasingBullet = false;
-        foreach (EnemyBullet bullet in bullets)
+        EnemyBullet giant = enemySystem.ChasingGiantSword;
+        if (giant != null && sword.TargetProjectile != giant)
         {
-            Vector2 bulletPosition = bullet.Root.localPosition;
-            float distance = (bulletPosition - position).sqrMagnitude;
-            if (chasingEnemy || distance > nearest)
-                continue;
-            nearest = distance;
-            destination = bulletPosition;
-            chasingBullet = true;
+            sword.Convergence = default;
+            sword.TargetProjectile = giant;
+        }
+        bool chasingBullet = TryGetProjectileTarget(sword, out Vector2 projectilePosition);
+        if (chasingBullet)
+            sword.Target = projectilePosition;
+        EnemyState targetEnemy = sword.LaunchEnemy ?? lockedEnemy;
+        bool chasingEnemy = !chasingBullet && targetEnemy is { Health: > 0 } && !enemySystem.IsInvulnerable(targetEnemy);
+        if (chasingEnemy && sword.LaunchEnemy != null)
+            sword.Target = transform.InverseTransformPoint(targetEnemy.Position);
+        Vector2 destination = chasingEnemy && sword.LaunchEnemy == null ? targetEnemy.Position : sword.Target;
+        if (!chasingBullet)
+        {
+            float nearest = InterceptRange * InterceptRange;
+            foreach (EnemyBullet bullet in bullets)
+            {
+                if (!IsActiveProjectile(bullet) || bullet == sword.LastGiantIntercept)
+                    continue;
+
+                Vector2 bulletPosition = bullet.Root.localPosition;
+                float distance = (bulletPosition - position).sqrMagnitude;
+                if (distance > nearest || stage.ClipTerrain(position, bulletPosition, Vector2.zero, out _))
+                    continue;
+                nearest = distance;
+                sword.TargetProjectile = bullet;
+                sword.Target = bulletPosition;
+                chasingBullet = true;
+            }
         }
         bool recoiling = sword.BlockRecoilTime > 0;
         float recoilStep = Mathf.Min(dt, sword.BlockRecoilTime);
         sword.BlockRecoilTime = Mathf.Max(0, sword.BlockRecoilTime - dt);
         Vector2 next;
-        if (chasingEnemy && !recoiling)
-            next = AdvanceHomingCurve(sword, lockedEnemy, dt);
+        if (recoiling)
+            next = position + sword.BlockRecoilVelocity * recoilStep;
+        else if (chasingBullet)
+        {
+            float speed = LaunchSpeed * SwordSpeedMultiplier * InterceptSpeedMultiplier;
+            EnemyBullet target = sword.TargetProjectile;
+            Vector2 aim = InterceptAim(target, position, speed, dt);
+            sword.Convergence = default;
+            next = Vector2.MoveTowards(position, aim, speed * dt);
+        }
+        else if (sword.Convergence.IsConfigured)
+            next = sword.Convergence.Advance(destination, dt);
+        else if (chasingEnemy && sword.LaunchEnemy == null)
+            next = AdvanceHomingCurve(sword, targetEnemy, dt);
         else
         {
             sword.CurveEnemy = null;
             sword.Trail.emitting = true;
-            next = recoiling ? position + sword.BlockRecoilVelocity * recoilStep :
-                Vector2.MoveTowards(position, destination, LaunchSpeed * SwordSpeedMultiplier * dt);
+            next = Vector2.MoveTowards(position, destination, LaunchSpeed * SwordSpeedMultiplier * dt);
         }
         PointSword(sword, next - position);
         if (stage.ClipTerrain(position, next, Vector2.zero, out Vector2 impact, out Vector2 normal))
@@ -226,19 +318,22 @@ public sealed partial class SwordSystem
             return;
         }
         sword.Root.localPosition = next;
-        if (TryReboundFromEnemy(sword, position, next) || TryHitBullet(sword, position, next))
+        if (giant == null && TryReboundFromEnemy(sword, position, next))
+            return;
+        if (TryHitBullet(sword, position, next, giant))
             return;
 
-        if (!recoiling && !chasingEnemy && !chasingBullet && next == sword.Target)
+        if (!recoiling && !chasingBullet && next == sword.Target)
             BeginFall(sword);
     }
 
-    bool TryHitBullet(SwordInstance sword, Vector2 from, Vector2 to)
+    bool TryHitBullet(SwordInstance sword, Vector2 from, Vector2 to, EnemyBullet onlyTarget = null)
     {
         for (int i = 0; i < bullets.Count; i++)
         {
             EnemyBullet bullet = bullets[i];
-            if (bullet == sword.LastGiantIntercept) continue;
+            if ((onlyTarget != null && bullet != onlyTarget) ||
+                !IsActiveProjectile(bullet) || bullet == sword.LastGiantIntercept) continue;
             if (DistanceToSegmentSquared(Vector2.zero, from - bullet.Previous,
                     to - (Vector2)bullet.Root.localPosition) > Mathf.Pow(InterceptContact + bullet.ContactRadius, 2))
                 continue;
@@ -346,6 +441,8 @@ public sealed partial class SwordSystem
             BeginRecall(sword);
             return;
         }
+        sword.TargetProjectile = null;
+        sword.LaunchEnemy = null;
         sword.State = SwordState.Falling;
         sword.FallVelocity = Vector2.zero;
         sword.ReturnAfterRecoil = 0;
@@ -364,20 +461,8 @@ public sealed partial class SwordSystem
         sword.FallVelocity += gravity * dt;
         Vector2 direction = next - position;
         bool terrainHit = stage.ClipTerrain(position, next, Vector2.zero, out next, out Vector2 normal);
-        if (TryReboundFromEnemy(sword, position, next))
+        if (!sword.IsOrderSword && TryReboundFromEnemy(sword, position, next))
             return;
-
-        for (int i = bullets.Count - 1; i >= 0; i--)
-        {
-            EnemyBullet bullet = bullets[i];
-            if (bullet == sword.LastGiantIntercept) continue;
-            if (DistanceToSegmentSquared(Vector2.zero, position - bullet.Previous,
-                    next - (Vector2)bullet.Root.localPosition) <= Mathf.Pow(InterceptContact + bullet.ContactRadius, 2))
-            {
-                sword.FallVelocity = BulletKnockback(bullet);
-                InterceptBullet(i, sword);
-            }
-        }
 
         sword.Root.localPosition = next;
         if (sword.ReturnAfterRecoil > 0)
@@ -420,6 +505,7 @@ public sealed partial class SwordSystem
         PointSword(sword, direction.sqrMagnitude > 0 ? direction : -normal);
         sword.GroundMark.transform.rotation = sword.Root.parent.rotation *
             Quaternion.Euler(0, 0, Vector2.SignedAngle(Vector2.up, normal));
+        sword.PlantedNormal = normal.sqrMagnitude > 0 ? normal : Vector2.up;
         sword.State = SwordState.Planted;
         sword.RecallCooldown = Mathf.Max(.1f, swordRecallCooldown);
         sword.GroundMark.color = new Color32(76, 101, 120, 255);
@@ -430,7 +516,7 @@ public sealed partial class SwordSystem
     void AdvanceReturn(SwordInstance sword, float dt)
     {
         Vector2 position = sword.Root.localPosition;
-        Vector2 home = RestPosition(orbiting.Count,orbiting.Count+1);
+        Vector2 home = RestPosition(sword);
         Vector2 target = home+(sword.ReturnPhase == 0 ? sword.ReturnOvershoot : Vector2.zero);
         PointSword(sword,target-position);
         Vector2 next = sword.ReturnPhase == 0 ? Vector2.MoveTowards(position,target,EffectiveReturnSpeed*dt) :

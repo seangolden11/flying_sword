@@ -3,21 +3,27 @@ using UnityEngine;
 public sealed partial class EnemySystem
 {
     const int GiantChaseHits = 3;
+    const int GiantChallengeHits = 20;
+    const float GiantChallengeRecoilDistanceScale = .045f;
+    const float GiantChallengeSlowTime = .2f;
     const float GiantChaseSlowTime = .85f;
     const float GiantChaseAccelerationTime = .28f;
     const float GiantChaseSpeedMultiplier = 1.32f;
     const float GiantRecoilSpeed = 44;
     const float GiantRecoilDeceleration = 176;
     EnemyBullet chasingGiantSword;
+    public EnemyBullet ChasingGiantSword => chasingGiantSword;
     BulletView plantedGiantSword;
     BulletView capturedGiantSword;
     EnemyState giantSwordBoss;
     bool giantReturning;
 
+    public EnemyState GiantSwordBoss => giantSwordBoss;
     public bool HasGiantSwordBoss => giantSwordBoss != null && giantSwordBoss.Health > 0;
     int giantChaseHits;
     float giantChaseSlow;
     Vector2 giantRecoilVelocity;
+    bool giantAdvancesDuringRecoil;
     float giantFallSpeed;
     bool giantFalling;
     SpriteRenderer giantBlade;
@@ -26,14 +32,10 @@ public sealed partial class EnemySystem
     void StartGiantChase(EnemyState boss)
     {
         giantSwordBoss = boss;
-        if (boss.BossSword != null && boss.BossSword.State == BossSwordState.Flying)
+        foreach (EnemyBullet basicSword in boss.BasicSwords)
         {
-            int basicShot = bullets.IndexOf(boss.BossSword);
-            if (basicShot >= 0)
-            {
-                bullets.RemoveAt(basicShot);
-                StartBossSwordRecall(boss);
-            }
+            if (basicSword.State == BossSwordState.Flying && bullets.Remove(basicSword))
+                StartBossSwordRecall(basicSword);
         }
         BulletView sword = Instantiate(swordProjectilePrefab, transform);
         Vector2 start = boss.Position + Vector2.up * 2;
@@ -47,6 +49,7 @@ public sealed partial class EnemySystem
         giantChaseHits = 0;
         giantChaseSlow = 0;
         giantRecoilVelocity = Vector2.zero;
+        giantAdvancesDuringRecoil = false;
         bullets.Add(chasingGiantSword);
     }
 
@@ -66,7 +69,10 @@ public sealed partial class EnemySystem
         sword.Velocity = direction * speed;
         if (giantRecoilVelocity.sqrMagnitude > 0)
         {
-            Vector2 next = position + giantRecoilVelocity * dt;
+            Vector2 next = giantAdvancesDuringRecoil
+                ? Vector2.MoveTowards(position, player.Position, speed * dt)
+                    + giantRecoilVelocity * (dt * GiantChallengeRecoilDistanceScale)
+                : position + giantRecoilVelocity * dt;
             geometry.ClipTerrain(position, next, Vector2.zero, out next);
             sword.Root.position = next;
             giantRecoilVelocity = Vector2.MoveTowards(giantRecoilVelocity, Vector2.zero, GiantRecoilDeceleration * dt);
@@ -82,25 +88,30 @@ public sealed partial class EnemySystem
         if (chasingGiantSword == null) return;
         Vector2 away = chasingGiantSword.Previous - player.Position;
         if (away.sqrMagnitude < .001f) away = chasingGiantSword.Root.up;
+        giantAdvancesDuringRecoil = false;
         giantRecoilVelocity = away.normalized * 54;
         giantChaseSlow = 1.5f;
     }
 
     public void InterceptProjectile(int index)
     {
-        if (bullets[index].IsPracticeShot) PracticeShotIntercepted = true;
+        if (bullets[index].Owner is { IsPractice: true } instructor)
+            instructor.PracticeSwordIntercepted = true;
         if (bullets[index] != chasingGiantSword)
         {
             RemoveBullet(index);
             return;
         }
 
-        giantChaseSlow = GiantChaseSlowTime;
+        bool bossChallenge = StoryProgress.IsBossChallenge;
+        giantChaseSlow = bossChallenge ? GiantChallengeSlowTime : GiantChaseSlowTime;
         Vector2 away = -chasingGiantSword.Velocity.normalized;
         if (away.sqrMagnitude == 0)
             away = chasingGiantSword.Root.up;
+        giantAdvancesDuringRecoil = bossChallenge;
         giantRecoilVelocity = away * GiantRecoilSpeed;
-        if (++giantChaseHits < GiantChaseHits) return;
+        int hitsToDrop = bossChallenge ? GiantChallengeHits : GiantChaseHits;
+        if (++giantChaseHits < hitsToDrop) return;
         plantedGiantSword = chasingGiantSword.View;
         chasingGiantSword = null;
         bullets.RemoveAt(index);

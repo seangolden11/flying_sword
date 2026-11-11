@@ -12,17 +12,11 @@ public sealed class EnemyView : MonoBehaviour
     [SerializeField] GameObject lockMarker;
     [SerializeField] LineRenderer detectionCircle;
     [SerializeField] LineRenderer sightLine;
-    bool fontReady;
     float drawnRadius = -1;
 
     public void Refresh(EnemyState enemy, EnemySystem system, Vector2 player, bool showRange,
         float range, Camera camera)
     {
-        if (!fontReady)
-        {
-            GameFonts.Apply(transform);
-            fontReady = true;
-        }
         healthText.gameObject.SetActive(!enemy.IsBoss);
         healthFill.transform.parent.gameObject.SetActive(!enemy.IsBoss);
         burstFill.transform.parent.gameObject.SetActive(!enemy.IsBoss);

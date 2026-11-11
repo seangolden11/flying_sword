@@ -39,7 +39,7 @@ public static class ProjectAssetBuilder
         Directory.CreateDirectory(Root + "/Equipment");
         Directory.CreateDirectory("Assets/Scenes");
         AssetDatabase.Refresh();
-        font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        font = GameFonts.Body;
         square = SpriteAsset("Square", (x,y) => Color.white);
         blade = AssetDatabase.LoadAssetAtPath<Sprite>(Root + "/Art/Blade.png");
         if (!blade) blade = SpriteAsset("Blade", (x,y) => Mathf.Abs(x-.5f) < .34f * Mathf.Min(1,y/.26f) ? Color.white : Color.clear);
@@ -173,7 +173,9 @@ public static class ProjectAssetBuilder
         var bag=Button("Open inventory",hud,"검 장비  [Tab]",Vector2.zero,new Vector2(220,64),manager.OpenInventory).GetComponent<RectTransform>();bag.anchorMin=bag.anchorMax=new Vector2(1,1);bag.pivot=new Vector2(1,1);bag.anchoredPosition=new Vector2(-36,-28);
         var title=Overlay("Title",root.transform);var titleText=Label("Game title",title.transform,"FLYING SWORD",66,TextAnchor.MiddleCenter);Place(titleText.rectTransform,new Vector2(0,270),new Vector2(1000,100));titleText.color=Mint;var subtitle=Label("Subtitle",title.transform,"검을 타고, 궤적을 그리다",29,TextAnchor.MiddleCenter);Place(subtitle.rectTransform,new Vector2(0,175),new Vector2(900,60));
         Button("Tutorial stage",title.transform,"튜토리얼",new Vector2(0,80),new Vector2(560,100),manager.StartTutorial);Button("Metroidvania stage",title.transform,"메트로배니아",new Vector2(0,-100),new Vector2(560,100),manager.StartMetroidvania).gameObject.SetActive(false);
-        var hint=Label("Stage hint",title.transform,"스테이지 선택  ·  Esc로 일시 정지 및 타이틀 이동",22,TextAnchor.MiddleCenter);Place(hint.rectTransform,new Vector2(0,-260),new Vector2(1000,60));
+        Button("Boss stage", title.transform, "보스전", new Vector2(0, -50), new Vector2(560, 100), manager.StartBoss);
+        Button("Boss challenge", title.transform, "보스전 2", new Vector2(0, -180), new Vector2(560, 100), manager.StartBossChallenge);
+        var hint=Label("Stage hint",title.transform,"스테이지 선택  ·  Esc로 일시 정지 및 타이틀 이동",22,TextAnchor.MiddleCenter);Place(hint.rectTransform,new Vector2(0,-330),new Vector2(1000,60));
         var pause=Overlay("Pause",root.transform);var ptitle=Label("Heading",pause.transform,"잠시 멈춤",46,TextAnchor.MiddleCenter);Place(ptitle.rectTransform,new Vector2(0,190),new Vector2(700,80));Button("Continue",pause.transform,"계속하기",new Vector2(0,40),new Vector2(500,90),manager.Resume);Button("Return to title",pause.transform,"타이틀로 돌아가기",new Vector2(0,-80),new Vector2(500,90),manager.ReturnToTitle);
         var defeat=Overlay("Defeat",root.transform);var dtitle=Label("Heading",defeat.transform,"검의 궤적이 멈췄습니다",44,TextAnchor.MiddleCenter);Place(dtitle.rectTransform,new Vector2(0,190),new Vector2(900,80));Button("Restart",defeat.transform,"다시 도전",new Vector2(0,40),new Vector2(500,90),manager.RestartStage);Button("Return to title",defeat.transform,"타이틀로 돌아가기",new Vector2(0,-80),new Vector2(500,90),manager.ReturnToTitle);
         var inventory=Overlay("Inventory",root.transform).AddComponent<InventoryPanel>();var panel=Image("Equipment panel",inventory.transform,Ink);Fill(panel.rectTransform);panel.rectTransform.anchorMin=new Vector2(.055f,.065f);panel.rectTransform.anchorMax=new Vector2(.945f,.935f);panel.rectTransform.offsetMin=panel.rectTransform.offsetMax=Vector2.zero;

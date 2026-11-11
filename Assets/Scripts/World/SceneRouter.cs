@@ -17,6 +17,12 @@ public sealed class SceneRouter : MonoBehaviour
     public static void Tutorial() => StartStory("Tutorial");
     public static void Boss() => StartStory("Boss");
 
+    public static void BossChallenge()
+    {
+        StoryProgress.StartBossChallenge();
+        Load("Boss");
+    }
+
     public static void Restart()
     {
         StoryProgress.RestoreStageEntry();

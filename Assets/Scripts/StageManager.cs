@@ -26,8 +26,9 @@ public sealed class StageManager : MonoBehaviour
         enemySystem.Initialize(geometry, player, cameraFollow.View);
         swordSystem.Initialize(geometry, player, enemySystem, equipment, cameraFollow);
         player.ResetPlayer();
-        enemySystem.ResetEnemies();
-        swordSystem.ResetSwords();
+        bool bossChallenge = StoryProgress.IsBossChallenge;
+        enemySystem.ResetEnemies(bossChallenge ? 5 : 1);
+        swordSystem.ResetSwords(bossChallenge ? 10 : null, orderSwordCount: bossChallenge ? 5 : 0);
         if (tutorial) Tutorial = new TutorialLesson(this, geometry);
         ui.Initialize(this);
     }
@@ -40,7 +41,7 @@ public sealed class StageManager : MonoBehaviour
         player.Tick(dt);
         enemySystem.Tick(dt);
         swordSystem.Tick(dt);
-        Tutorial?.Tick(dt);
+        Tutorial?.Tick();
         foreach (EnemyState enemy in enemySystem.Enemies)
             enemy.View.SetLocked(enemy == swordSystem.LockedEnemy);
     }

@@ -9,9 +9,12 @@ public sealed partial class EnemySystem
     {
         EnemyBullet sword = owner.BossSword;
         if (sword == null) return;
+        for (int i = 1; i < owner.BasicSwords.Length; i++)
+            ReleaseBossSword(owner.BasicSwords[i]);
+        owner.BasicSwords = new[] { sword };
         bullets.Remove(sword);
         bossLoot.Add(owner);
-        if (owner.RecallCircle != null) Destroy(owner.RecallCircle);
+        if (sword.RecallCircle != null) Destroy(sword.RecallCircle);
         if (sword.State == BossSwordState.Stolen) return;
         sword.Root.position = owner.Position + Vector2.up*.6f;
         sword.State = BossSwordState.Falling;

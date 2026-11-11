@@ -6,7 +6,8 @@ public sealed partial class SwordSystem
 
     void ApplyOwnedSwordColors(SwordInstance sword)
     {
-        Color color = SwordKindColor(sword.Kind);
+        Color color = sword.IsEnemyWeapon && !sword.PermanentLoot
+            ? new Color32(181, 111, 255, 255) : SwordKindColor(sword.Kind);
         sword.CapturedBladeColor = color;
         sword.Blade.color = color;
         sword.Trail.startColor = new Color(color.r,color.g,color.b,.65f);
@@ -23,8 +24,6 @@ public sealed partial class SwordSystem
         CopyCapturedAppearance(sword,source);
         ApplyOwnedSwordColors(sword);
         sword.State = SwordState.Orbiting;
-        sword.Root.localPosition = RestPosition(orbiting.Count,orbiting.Count+1);
-        PointSword(sword,RestDirection(orbiting.Count,orbiting.Count+1));
         swords.Add(sword);
         orbiting.Add(sword);
     }

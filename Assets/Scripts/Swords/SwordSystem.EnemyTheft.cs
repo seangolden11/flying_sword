@@ -100,7 +100,7 @@ public sealed partial class SwordSystem
             float nearest = 14 * 14;
             foreach (SwordInstance sword in swords)
             {
-                if ((sword.IsEnemyWeapon && !sword.PermanentLoot) || sword.State != SwordState.Planted ||
+                if (sword.IsOrderSword || (sword.IsEnemyWeapon && !sword.PermanentLoot) || sword.State != SwordState.Planted ||
                     enemyThefts.Exists(attempt => attempt.Sword == sword)) continue;
                 float distance = ((Vector2)sword.Root.position-enemy.Position).sqrMagnitude;
                 if (distance > nearest) continue;

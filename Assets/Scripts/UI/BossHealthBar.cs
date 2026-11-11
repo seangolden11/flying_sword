@@ -14,7 +14,6 @@ public sealed class BossHealthBar : MonoBehaviour
 
     void Awake()
     {
-        GameFonts.Apply(transform);
         panel.SetActive(false);
     }
 

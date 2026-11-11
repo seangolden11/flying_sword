@@ -9,17 +9,17 @@ public sealed partial class SwordSystem
     SpriteRenderer lootClaimBlade;
     Color lootClaimColor;
 
-    bool UpdateLootClaim(Vector2 cursor, bool holding, float dt)
+    bool UpdateLootClaim(Vector2 cursor, bool pointerAvailable, float dt)
     {
         if (claimingLootOwner != null && Time.frameCount-lootClaimFrame > 1) CancelLootClaim();
-        if (!holding)
+        if (!pointerAvailable)
         {
             CancelLootClaim();
             return false;
         }
         if (claimingLootOwner == null)
         {
-            claimingLootOwner = enemySystem.BossLootAt(transform.TransformPoint(cursor),RecallRadius);
+            claimingLootOwner = enemySystem.BossLootAt(transform.TransformPoint(cursor), RecallRadius);
             if (claimingLootOwner == null) return false;
             lootClaimTime = 0;
             Transform blade = claimingLootOwner.BossSword.Root.Find("Visual/Blade");

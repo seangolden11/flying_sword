@@ -43,7 +43,6 @@ public sealed class InventoryPanel : MonoBehaviour
             if (i >= slots.Count)
             {
                 SwordSlot slot = Instantiate(slotPrefab, equippedSection.Content);
-                GameFonts.Apply(slot.transform);
                 slots.Add(slot);
             }
             SwordInstance sword = inventory[i];

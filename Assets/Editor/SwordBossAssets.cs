@@ -88,7 +88,6 @@ public static class SwordBossAssets
 
             var projectile = (GameObject)PrefabUtility.InstantiatePrefab(sword, preview);
             projectile.name = "Homing Sword";
-            projectile.transform.localScale = Vector3.one * 1.35f;
             var visual = projectile.GetComponent<SwordView>();
             visual.blade.color = new Color32(255,130,107,255);
             visual.groundMark.gameObject.SetActive(false);

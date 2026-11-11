@@ -4,13 +4,21 @@ using UnityEngine;
 public static class StoryProgress
 {
     public static bool HasBossSword { get; private set; }
+    public static bool IsBossChallenge { get; private set; }
     static bool checkpointHasBossSword;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     public static void StartNewStory()
     {
+        IsBossChallenge = false;
         HasBossSword = false;
         checkpointHasBossSword = false;
+    }
+
+    public static void StartBossChallenge()
+    {
+        StartNewStory();
+        IsBossChallenge = true;
     }
 
     public static void AcquireBossSword() => HasBossSword = true;

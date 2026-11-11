@@ -137,7 +137,11 @@ public sealed partial class EnemySystem
             BulletView sword = queuedPortalSwords.Count > 0 ? queuedPortalSwords.Dequeue() : GetPortalSword();
             FirePortalCountershot(sword, home);
             portalCountershotsRemaining--;
-            if (portalCountershotsRemaining == 0) portalShield.enabled = false;
+            if (portalCountershotsRemaining == 0)
+            {
+                owner.Health = Mathf.Max(1, owner.MaxHealth / 5);
+                portalShield.enabled = false;
+            }
             portalCountershotTimer += PortalCountershotInterval;
         }
         if (portalCountershotsRemaining > 0) return;
@@ -194,8 +198,13 @@ public sealed partial class EnemySystem
         return ring;
     }
 
-    BulletView GetPortalSword() => swordProjectilePool.Count > 0
-        ? swordProjectilePool.Pop() : Instantiate(swordProjectilePrefab, transform);
+    BulletView GetPortalSword()
+    {
+        BulletView sword = swordProjectilePool.Count > 0
+            ? swordProjectilePool.Pop() : Instantiate(swordProjectilePrefab, transform);
+        sword.transform.localScale = Vector3.one * 1.35f;
+        return sword;
+    }
 
     void LaunchPortalSword(Vector2 origin, Vector2 direction)
     {

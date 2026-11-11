@@ -39,44 +39,22 @@ public sealed partial class SwordSystem
         if (sword.PendingRemoval) return;
         if (sword.CapturedGiantSword)
             enemySystem.ReturnGiantSword(sword.Root.position);
-        else enemySystem.ReturnStolenSword(sword.BorrowedFrom,sword.Root.position);
+        else enemySystem.ReturnStolenSword(sword.StolenBasicSword, sword.Root.position);
         orbiting.Remove(sword);
         sword.State = SwordState.Stored;
         sword.PendingRemoval = true;
         sword.Root.gameObject.SetActive(false);
     }
 
-    void UpdateCapturedHoldTimers(float dt)
+    void ReleaseCapturedSwordsFromDefeatedOwners()
     {
         foreach (SwordInstance sword in swords)
         {
-            if ((sword.BorrowedFrom == null && !sword.CapturedGiantSword) || sword.PendingRemoval) continue;
-            sword.Visual.localPosition = Vector3.zero;
-            sword.Visual.localRotation = Quaternion.identity;
-            bool ownerDefeated = sword.CapturedGiantSword ? !enemySystem.HasGiantSwordBoss : sword.BorrowedFrom.Health <= 0;
-            if (!sword.PermanentLoot && ownerDefeated)
-            {
+            if (sword.PermanentLoot || sword.PendingRemoval) continue;
+            bool ownerDefeated = sword.CapturedGiantSword
+                ? !enemySystem.HasGiantSwordBoss : sword.BorrowedFrom is { Health: <= 0 };
+            if (ownerDefeated)
                 ReturnBorrowedSword(sword);
-                continue;
-            }
-            if (sword.PermanentLoot || sword.BorrowedUsed) continue;
-            sword.CapturedShakeTime += dt;
-            sword.CapturedTimeRemaining = Mathf.Max(0,sword.CapturedTimeRemaining-dt);
-            if (sword.CapturedTimeRemaining <= 0) ReturnBorrowedSword(sword);
-        }
-    }
-
-    void ApplyCapturedShake()
-    {
-        foreach (SwordInstance sword in swords)
-        {
-            if ((sword.BorrowedFrom == null && !sword.CapturedGiantSword) ||
-                sword.PermanentLoot || sword.BorrowedUsed || sword.PendingRemoval) continue;
-            float progress = 1-sword.CapturedTimeRemaining/3;
-            float strength = progress * progress;
-            float phase = sword.CapturedShakeTime * 90;
-            sword.Visual.localPosition = new Vector2(Mathf.Sin(phase),Mathf.Sin(phase*1.37f)) * (.09f*strength);
-            sword.Visual.localRotation = Quaternion.Euler(0,0,Mathf.Sin(phase*.81f)*12*strength);
         }
     }
 }

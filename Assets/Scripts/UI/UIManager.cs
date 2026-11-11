@@ -19,19 +19,12 @@ public sealed class UIManager : MonoBehaviour
     [SerializeField] Text swordCount;
     [SerializeField] Text waveTimer;
     StageManager stage;
-    BossHealthBar bossHealthBar;
     float resumeTimeScale = 1;
     bool paused;
 
     void Awake()
     {
         Time.timeScale = 1;
-        GameFonts.Apply(transform);
-        if (!titleScreen)
-        {
-            var prefab = Resources.Load<BossHealthBar>("UI/BossHealthBar");
-            if (prefab != null) bossHealthBar = Instantiate(prefab, hud.transform, false);
-        }
         var input = GetComponentInChildren<InputSystemUIInputModule>(true);
         if (input != null)
             input.AssignDefaultActions();
@@ -47,7 +40,12 @@ public sealed class UIManager : MonoBehaviour
     public void Initialize(StageManager owner)
     {
         stage = owner;
-        if (bossHealthBar != null) bossHealthBar.Initialize(stage.Enemies);
+        if (!titleScreen && stage.Tutorial == null)
+        {
+            var prefab = Resources.Load<BossHealthBar>("UI/BossHealthBar");
+            if (prefab != null)
+                Instantiate(prefab, hud.transform, false).Initialize(stage.Enemies);
+        }
         inventory.Initialize(stage.Equipment, stage.Swords);
         if (stage.Tutorial != null)
         {
@@ -139,6 +137,7 @@ public sealed class UIManager : MonoBehaviour
     public void StartCombat() => SceneRouter.Combat();
     public void StartMetroidvania() => SceneRouter.Metroidvania();
     public void StartBoss() => SceneRouter.Boss();
+    public void StartBossChallenge() => SceneRouter.BossChallenge();
     public void ReturnToTitle() => SceneRouter.Title();
     public void RestartStage() => SceneRouter.Restart();
 

@@ -28,6 +28,7 @@ public sealed partial class EnemySystem : MonoBehaviour
     EnemyView swordBossPrefab;
     BulletView swordProjectilePrefab;
     GameObject recallCirclePrefab;
+    int bossHealthMultiplier = 1;
     StageGeometry geometry;
     PlayerController player;
     Camera view;
@@ -49,9 +50,9 @@ public sealed partial class EnemySystem : MonoBehaviour
         view = camera;
     }
 
-    public void ResetEnemies()
+    public void ResetEnemies(int healthMultiplier = 1)
     {
-        PracticeShotIntercepted = false;
+        bossHealthMultiplier = healthMultiplier;
         ResetAreaAttacks();
         ResetGiantReward();
         EndSwordPortal(reset: true);
@@ -81,7 +82,7 @@ public sealed partial class EnemySystem : MonoBehaviour
         }
         foreach (EnemyState enemy in enemies)
         {
-            if (enemy.SwordVisual != null) enemy.SwordVisual.Face(player.Position);
+            if (enemy.SwordVisual != null) enemy.SwordVisual.UpdateFormation(player.Position, dt);
             TickBossSword(enemy, dt);
             UpdateFire(enemy, dt);
             enemy.HitTimer = Mathf.Max(0, enemy.HitTimer - dt);
@@ -109,21 +110,33 @@ public sealed partial class EnemySystem : MonoBehaviour
                 bullet.Lifetime -= dt;
                 if (bullet.Lifetime <= 0)
                 {
-                    RemoveBullet(i);
+                    RemoveBullet(i, expired: true);
                     continue;
                 }
             }
-            if (bullet.HomingSword || bullet.IsPortalCountershot)
+            Vector2 next;
+            if (bullet.Convergence.IsConfigured)
             {
-                float speed = bullet.IsPortalCountershot ? PortalCountershotSpeed : 7.5f;
-                Vector2 desired = player.Position - bullet.Previous;
-                if (desired.sqrMagnitude > .000001f)
-                    bullet.Velocity = Vector3.RotateTowards(bullet.Velocity,
-                        desired.normalized * speed, 110 * Mathf.Deg2Rad * dt, 0);
-                bullet.Root.rotation = Quaternion.Euler(0, 0,
-                    Vector2.SignedAngle(Vector2.down, bullet.Velocity));
+                Vector2 waypoint = bullet.Convergence.Advance(player.Position, dt);
+                next = Vector2.MoveTowards(bullet.Previous, waypoint, BossSwordSpeed * dt);
+                bullet.Velocity = (next - bullet.Previous) / dt;
+                if (bullet.Velocity.sqrMagnitude > .000001f)
+                    bullet.Root.rotation = Quaternion.Euler(0, 0, Vector2.SignedAngle(Vector2.down, bullet.Velocity));
             }
-            Vector2 next = bullet.Previous + bullet.Velocity * dt;
+            else
+            {
+                if (bullet.HomingSword || bullet.IsPortalCountershot)
+                {
+                    float speed = bullet.IsPortalCountershot ? PortalCountershotSpeed : 7.5f;
+                    Vector2 desired = player.Position - bullet.Previous;
+                    if (desired.sqrMagnitude > .000001f)
+                        bullet.Velocity = Vector3.RotateTowards(bullet.Velocity,
+                            desired.normalized * speed, 110 * Mathf.Deg2Rad * dt, 0);
+                    bullet.Root.rotation = Quaternion.Euler(0, 0,
+                        Vector2.SignedAngle(Vector2.down, bullet.Velocity));
+                }
+                next = bullet.Previous + bullet.Velocity * dt;
+            }
             if (geometry.ClipTerrain(bullet.Previous, next, Vector2.zero, out Vector2 impact))
             {
                 bullet.Root.position = impact;
@@ -171,9 +184,12 @@ public sealed partial class EnemySystem : MonoBehaviour
     }
 
     public EnemyState SpawnPlaced(EnemyPlacement placement)
-        => SpawnEnemy(placement.transform.position, placement.boss ? BossMaxHealth : placement.health, placement.boss, placement.scale);
+        => SpawnEnemy(placement.transform.position, placement.boss ? BossMaxHealth * bossHealthMultiplier : placement.health, placement.boss, placement.scale);
 
-    EnemyState SpawnEnemy(Vector2 position, int health, bool boss, float scale)
+    public EnemyState SpawnPracticeSwordsman(Vector2 position) =>
+        SpawnEnemy(position, BossMaxHealth, boss: true, scale: 1.5f, practice: true);
+
+    EnemyState SpawnEnemy(Vector2 position, int health, bool boss, float scale, bool practice = false)
     {
         Stack<EnemyView> pool = boss ? bossPool : enemyPool;
         EnemyView prefab = boss && swordBossPrefab != null ? swordBossPrefab : enemyPrefab;
@@ -185,7 +201,7 @@ public sealed partial class EnemySystem : MonoBehaviour
         var enemy = new EnemyState
         {
             View = enemyView, SwordVisual = enemyView.GetComponent<SwordBossVisual>(),
-            Health = health, MaxHealth = health, IsBoss = boss,
+            Health = health, MaxHealth = health, IsBoss = boss, IsPractice = practice,
             BurstTimer = burstInterval, BasicTimer = boss ? 1.1f : Random.Range(.3f, basicInterval)
         };
         if (boss) CreateBossSword(enemy);
@@ -209,6 +225,12 @@ public sealed partial class EnemySystem : MonoBehaviour
             return;
         if (enemy.IsBoss)
         {
+            if (enemy.IsPractice)
+            {
+                if (!enemy.PracticeSwordIntercepted)
+                    TickBossBasicAttack(enemy, dt);
+                return;
+            }
             if (enemy == swordPortalOwner)
             {
                 TickSwordPortal(enemy, dt);
@@ -216,11 +238,8 @@ public sealed partial class EnemySystem : MonoBehaviour
             }
             TickBossAreaPattern(enemy,dt);
             if (chasingGiantSword?.GiantChaseOwner == enemy) return;
-            if (enemy.BossSword != null && enemy.BossSword.State == BossSwordState.Ready)
-            {
-                enemy.BasicTimer -= dt;
-                if (enemy.BasicTimer <= 0) LaunchBossSword(enemy);
-            }
+            if (enemy.BasicSwords != null)
+                TickBossBasicAttack(enemy, dt);
             return;
         }
         enemy.BurstTimer -= dt;
@@ -258,10 +277,7 @@ public sealed partial class EnemySystem : MonoBehaviour
         SpawnProjectile(enemy.Position + (enemy.IsBoss ? direction * 1.1f : Vector2.zero), enemy.IsBoss);
     }
 
-    public bool PracticeShotIntercepted { get; private set; }
-    public void FirePracticeShot(Vector2 position) => SpawnProjectile(position, false, practice: true);
-
-    void SpawnProjectile(Vector2 position, bool homingSword, bool practice = false)
+    void SpawnProjectile(Vector2 position, bool homingSword)
     {
         Stack<BulletView> pool = homingSword ? swordProjectilePool : bulletPool;
         BulletView prefab = homingSword && swordProjectilePrefab != null ? swordProjectilePrefab : bulletPrefab;
@@ -276,12 +292,12 @@ public sealed partial class EnemySystem : MonoBehaviour
         bulletView.ResetTrail(homingSword);
         bullets.Add(new EnemyBullet
         {
-            View = bulletView, Previous = position, Velocity = direction.normalized * (practice ? 4 : homingSword ? 7.5f : bulletSpeed),
-            HomingSword = homingSword, IsPracticeShot = practice, Lifetime = 7
+            View = bulletView, Previous = position, Velocity = direction.normalized * (homingSword ? BossSwordSpeed : bulletSpeed),
+            HomingSword = homingSword, Lifetime = 7
         });
     }
 
-    public void RemoveBullet(int index)
+    public void RemoveBullet(int index, bool expired = false)
     {
         EnemyBullet bullet = bullets[index];
         if (bullet.GiantChaseOwner != null)
@@ -302,7 +318,7 @@ public sealed partial class EnemySystem : MonoBehaviour
         if (bullet.Owner != null)
         {
             bullets.RemoveAt(index);
-            DisableBossSword(bullet);
+            DisableBossSword(bullet, expired);
             return;
         }
         bullet.View.ResetTrail(false);
@@ -311,9 +327,13 @@ public sealed partial class EnemySystem : MonoBehaviour
         bullets.RemoveAt(index);
     }
 
+    public bool IsInvulnerable(EnemyState enemy) =>
+        (enemy.IsPractice && enemy.BossSword?.State != BossSwordState.Stolen) ||
+        (enemy == swordPortalOwner && PortalBossInvulnerable);
+
     public void Damage(EnemyState enemy, int damage)
     {
-        if (enemy.Health <= 0 || (enemy == swordPortalOwner && PortalBossInvulnerable) || damage <= 0)
+        if (enemy.Health <= 0 || IsInvulnerable(enemy) || damage <= 0)
             return;
         if (!enemy.AlertedByDamage)
             enemy.BasicTimer = 0;
@@ -321,7 +341,7 @@ public sealed partial class EnemySystem : MonoBehaviour
         enemy.IsAware = true;
         enemy.Health = Mathf.Max(0, enemy.Health - damage);
         int portalThreshold = Mathf.Max(1, enemy.MaxHealth / 10);
-        if (enemy.IsBoss && !enemy.UsedSwordPortal && enemy.Health <= portalThreshold &&
+        if (enemy.IsBoss && !enemy.IsPractice && !enemy.UsedSwordPortal && enemy.Health <= portalThreshold &&
             swordProjectilePrefab != null && areaWarningPrefab != null)
         {
             enemy.Health = portalThreshold;
